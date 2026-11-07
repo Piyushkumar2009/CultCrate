@@ -97,6 +97,23 @@ export function AuthScreen({ onReturn, onSuccess, initialTab = 'signin' }: AuthS
     return () => clearInterval(timer);
   }, [resendCooldown]);
 
+  // Show a success notice when the email-confirmation link sends people back with ?verified=true,
+  // then remove the flag from the address bar so a refresh doesn't repeat it.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('verified') === 'true') {
+      setAuthNotice('Email verified! Sign in to start exploring CultCrate.');
+      setActiveTab('signin');
+      params.delete('verified');
+      const query = params.toString();
+      window.history.replaceState(
+        null,
+        '',
+        `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`
+      );
+    }
+  }, []);
+
   const handleCopyError = () => {
     if (authError && typeof navigator !== 'undefined') {
       navigator.clipboard.writeText(authError);
@@ -368,7 +385,7 @@ export function AuthScreen({ onReturn, onSuccess, initialTab = 'signin' }: AuthS
                     </div>
                     <div className="flex items-start gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5 text-[#4EDEAE] shrink-0 mt-0.5" />
-                      <span>Once you\'re confirmed, your Letterboxd diary syncs automatically.</span>
+                      <span>Once you&apos;re confirmed, your Letterboxd diary syncs automatically.</span>
                     </div>
                     <div className="flex items-start gap-2 text-[#9CA3AF]/80 font-sans text-[11px]">
                       <span className="text-[#F59E0B]">✦</span>
