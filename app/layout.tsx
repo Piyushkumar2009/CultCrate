@@ -32,6 +32,9 @@ export const metadata: Metadata = {
   creator: 'CultCrate',
   publisher: 'CultCrate',
   category: 'entertainment',
+  verification: {
+    google: 'llcR0z1iGWL3hZYNLBFezFklRGEtYKoHVK5N_n002UU',
+  },
   formatDetection: {
     email: false,
     address: false,
