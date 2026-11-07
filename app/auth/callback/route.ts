@@ -114,6 +114,13 @@ export async function GET(request: NextRequest) {
       // Supabase has already confirmed the email at this point, there is just no session here,
       // so send the person to sign in with a success message.
       if (/code verifier/i.test(exchangeError.message || '')) {
+        // A password-reset link needs the session, so it must be opened in the same browser.
+        if (next.startsWith('/reset-password')) {
+          return redirectToAuthError(
+            origin,
+            'Open the reset link in the same browser where you requested it, or request a new link.'
+          );
+        }
         return redirectToAuth(origin, { verified: 'true' });
       }
 

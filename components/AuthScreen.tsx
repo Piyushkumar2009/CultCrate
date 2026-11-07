@@ -270,6 +270,49 @@ export function AuthScreen({ onReturn, onSuccess, initialTab = 'signin' }: AuthS
     }
   };
 
+  // Forgot Password: email a Supabase reset link that lands on /reset-password after sign-in via the callback route
+  const handleForgotPassword = async () => {
+    if (isLoading) return;
+
+    setAuthError(null);
+    setAuthNotice(null);
+
+    const cleanEmail = email.trim();
+
+    if (!cleanEmail) {
+      setAuthError('Enter your email address in the field above first, then tap "Forgot password?" again.');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setAuthError('That email address doesn\'t look right. Please check it and try again.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const redirectTo = `${window.location.origin}/auth/callback?next=/reset-password`;
+
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, { redirectTo });
+
+      if (error) throw error;
+
+      setAuthNotice(
+        `If an account exists for ${cleanEmail}, a password reset link is on its way. Check your inbox and spam folder.`
+      );
+    } catch (err: unknown) {
+      console.error('Password reset error:', err);
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'We couldn\'t send the reset email. Please try again in a moment.';
+      setAuthError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-[100dvh] flex flex-col justify-between relative bg-[#090D16] text-[#F9FAFB] font-sans selection:bg-[#E50914] selection:text-white overflow-x-hidden">
       {/* Subtle Film Grain Pattern Overlay */}
@@ -554,7 +597,7 @@ export function AuthScreen({ onReturn, onSuccess, initialTab = 'signin' }: AuthS
                           href="#"
                           onClick={(e) => {
                             e.preventDefault();
-                            setAuthNotice('Password reset isn\'t available here yet. Please contact support.');
+                            void handleForgotPassword();
                           }}
                           className="font-sans text-[11px] text-[#E50914] hover:text-red-400 transition-colors"
                         >
