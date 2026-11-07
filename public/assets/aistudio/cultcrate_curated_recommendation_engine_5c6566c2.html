@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&amp;family=Plus+Jakarta+Sans:wght@400;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{colors:{"on-secondary":"#472a00","on-secondary-container":"#5b3800","background":"#101319","primary-fixed":"#ffdad5","inverse-primary":"#c0000c","surface-container-highest":"#32353c","on-tertiary-container":"#e8ffef","error-container":"#93000a","surface-bright":"#363940","inverse-surface":"#e1e2eb","on-tertiary-fixed":"#002113","error":"#ffb4ab","surface":"#101319","on-primary-container":"#fff7f6","surface-container-lowest":"#0b0e14","secondary-container":"#ee9800","on-primary-fixed":"#410001","secondary":"#ffb95f","on-tertiary":"#003824","secondary-fixed":"#ffddb8","tertiary-fixed":"#6ffbbe","outline-variant":"#5e3f3b","on-surface-variant":"#e9bcb6","on-secondary-fixed":"#2a1700","on-primary-fixed-variant":"#930007","outline":"#af8782","surface-tint":"#ffb4aa","on-error-container":"#ffdad6","on-error":"#690005","on-primary":"#690003","surface-container-low":"#191c22","tertiary-fixed-dim":"#4edea3","surface-container-high":"#272a31","primary-fixed-dim":"#ffb4aa","on-surface":"#e1e2eb","on-tertiary-fixed-variant":"#005236","tertiary-container":"#00835a","surface-variant":"#32353c","on-background":"#e1e2eb","primary":"#ffb4aa","inverse-on-surface":"#2e3037","secondary-fixed-dim":"#ffb95f","tertiary":"#4edea3","on-secondary-fixed-variant":"#653e00","surface-dim":"#101319","surface-container":"#1d2026","primary-container":"#e50914"},borderRadius:{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},spacing:{"gutter-mobile":"1rem","space-lg":"1.5rem","gutter":"1.5rem","margin":"3rem","space-xs":"0.25rem","space-sm":"0.5rem","space-xl":"2.5rem","space-md":"1rem","margin-mobile":"1.25rem"},fontFamily:{"headline-lg":["Plus Jakarta Sans"],"display-hero-mobile":["Plus Jakarta Sans"],"body-lg":["Plus Jakarta Sans"],"headline-md":["Plus Jakarta Sans"],"label-code-caps":["JetBrains Mono"],"label-tag":["Plus Jakarta Sans"],"body-sm":["Plus Jakarta Sans"],"body-md":["Plus Jakarta Sans"],"display-hero":["Plus Jakarta Sans"],"headline-lg-mobile":["Plus Jakarta Sans"],"label-numeric":["JetBrains Mono"],"headline-sm":["Plus Jakarta Sans"]},fontSize:{"headline-lg":["32px",{lineHeight:"40px",letterSpacing:"-0.02em",fontWeight:"700"}],"display-hero-mobile":["36px",{lineHeight:"44px",letterSpacing:"-0.025em",fontWeight:"800"}],"body-lg":["16px",{lineHeight:"26px",letterSpacing:"-0.005em",fontWeight:"400"}],"headline-md":["22px",{lineHeight:"28px",letterSpacing:"-0.015em",fontWeight:"600"}],"label-code-caps":["11px",{lineHeight:"14px",letterSpacing:"0.08em",fontWeight:"600"}],"label-tag":["11px",{lineHeight:"14px",letterSpacing:"0.02em",fontWeight:"600"}],"body-sm":["12px",{lineHeight:"18px",fontWeight:"400"}],"body-md":["14px",{lineHeight:"22px",fontWeight:"400"}],"display-hero":["56px",{lineHeight:"64px",letterSpacing:"-0.03em",fontWeight:"800"}],"headline-lg-mobile":["24px",{lineHeight:"32px",letterSpacing:"-0.015em",fontWeight:"700"}],"label-numeric":["13px",{lineHeight:"16px",letterSpacing:"-0.02em",fontWeight:"500"}],"headline-sm":["18px",{lineHeight:"24px",letterSpacing:"-0.01em",fontWeight:"600"}]}}}};</script></head><body class="bg-surface font-body-md text-on-surface min-h-screen selection:bg-primary-container selection:text-on-primary-container"><header class="fixed top-0 left-0 right-0 h-16 bg-surface/85 backdrop-blur-xl border-b border-surface-container-highest z-50"><div class="h-16 w-full px-gutter flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-md flex-shrink-0"><a class="flex items-center gap-space-sm" data-path="curated-vault" href="#"><img alt="CultCrate Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1VwKNIi16GpWKJt7sK825YRTRldohc-BehzCzIJdOwEkqCaU0FRpcfDL3hEpf-yon1sJXWM6yThkUj4u97ajnVfzK-5M4HqpDMzgm82hif74jWh5OUlcicOGxK_C00vdY5-PZ3-v6DICMU3QgMTlYhB6KGROFyXv-PszhYGApt_RrAHYeqvCyHIwC-fhxX3BDG9YcwcYU6JBVH7B4_JoyWIPLJWj6QQZoqGzrX2E5-gHA"/><span class="font-headline-sm text-headline-sm text-on-surface tracking-tight font-bold hidden sm:inline">CultCrate</span></a><div class="flex items-center gap-space-xs px-space-sm py-0.5 rounded-full bg-surface-container border border-tertiary/30 shadow-[0_0_12px_-2px_rgba(16,185,129,0.25)]"><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-tertiary opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-tertiary"></span></span><span class="font-label-code-caps text-label-code-caps uppercase tracking-wider text-tertiary font-semibold hidden md:inline">Letterboxd RSS Auto-Synced</span><span class="font-label-code-caps text-label-code-caps text-tertiary md:hidden">SYNCED</span></div></div><div class="hidden lg:flex items-center flex-1 max-w-md mx-space-lg"><nav class="flex items-center gap-space-xs p-1 rounded-full bg-surface-container-lowest/80 border border-surface-container-highest/60 w-full justify-center" data-active-classes="bg-surface-container-high text-on-surface"><a aria-current="page" class="px-space-md py-1 rounded-full font-body-sm transition-colors bg-surface-container-high text-on-surface" data-path="curated-vault" href="#">Curations</a><a class="px-space-md py-1 rounded-full font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" data-path="cinematic-dna" href="#">DNA Engine</a><a class="px-space-md py-1 rounded-full font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" data-path="vault-history" href="#">Vault Logs</a><a class="px-space-md py-1 rounded-full font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" data-path="duo-mode" href="#">Co-Screening</a></nav></div><div class="flex items-center gap-space-sm flex-shrink-0"><a class="hidden sm:flex items-center gap-space-xs px-space-md py-1.5 rounded-full bg-surface-container hover:bg-surface-container-high border border-surface-container-highest text-on-surface font-body-sm text-body-sm transition-all hover:border-outline" data-path="duo-mode" href="#"><span class="material-symbols-outlined text-[18px] text-secondary">group</span><span class="font-semibold">Duo Mode</span></a><a class="hidden md:flex items-center gap-space-xs px-space-md py-1.5 rounded-full bg-surface-container hover:bg-surface-container-high border border-surface-container-highest text-on-surface font-body-sm text-body-sm transition-all hover:border-outline" data-path="cinematic-dna" href="#"><span class="material-symbols-outlined text-[18px] text-tertiary">analytics</span><span class="font-semibold">Cinematic DNA</span></a><a class="hidden xl:flex items-center gap-space-xs px-space-md py-1.5 rounded-full bg-surface-container hover:bg-surface-container-high border border-surface-container-highest text-on-surface font-body-sm text-body-sm transition-all hover:border-outline" data-path="vault-history" href="#"><span class="material-symbols-outlined text-[18px] text-primary">history_edu</span><span class="font-semibold">Vault History</span></a><div class="h-4 w-px bg-surface-container-highest mx-space-xs hidden sm:block"></div><a class="relative flex items-center p-0.5 rounded-full ring-1 ring-surface-container-highest hover:ring-primary transition-all" data-path="curator-profile" href="#"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAn4XTZO-VmgjS5Gf9szud6SnT_LL8yZCJwQ0uKPU8LsrqC2WQsE2V1F1-nz2D1B2dYB3Jjx4PiJJs6AT-v_SFlhLgnuQgWAUYjJzUzsxNcxTy-0EzXgH3hKHBu3FMOVF9C5Dw1nebPjj5GcZcKFtbZ_eXCIQunGtngPbMBVl8UeWPiZBrVwXek_NCWh61mcjGyWSCV6GQOVEPYaSbX0QmKl2xwxn-myTwtkp4ndOb5"/><span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-tertiary ring-2 ring-surface"></span></a></div></div></header><aside class="fixed left-0 top-16 bottom-0 w-64 bg-surface-container-lowest/90 backdrop-blur-xl border-r border-surface-container-highest z-40 flex flex-col justify-between p-space-md hidden md:flex"><div class="space-y-space-lg"><div class="px-space-sm"><div class="font-label-code-caps text-label-code-caps uppercase tracking-wider text-outline mb-space-sm font-semibold">Engine Modules</div><nav class="space-y-1.5" data-active-classes="bg-primary-container text-on-primary-container font-semibold shadow-[0_0_16px_rgba(229,9,20,0.35)]"><a aria-current="page" class="flex items-center gap-space-sm px-space-md py-2 rounded-xl transition-all bg-primary-container text-on-primary-container font-semibold shadow-[0_0_16px_rgba(229,9,20,0.35)]" data-path="curated-vault" href="#"><span class="material-symbols-outlined text-[20px]">movie</span><span class="font-body-md text-body-md">Curated Vault</span></a><a class="flex items-center gap-space-sm px-space-md py-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="cinematic-dna" href="#"><span class="material-symbols-outlined text-[20px]">insights</span><span class="font-body-md text-body-md">Cinematic DNA</span></a><a class="flex items-center gap-space-sm px-space-md py-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="duo-mode" href="#"><span class="material-symbols-outlined text-[20px]">supervised_user_circle</span><span class="font-body-md text-body-md">Duo Mode Sync</span></a><a class="flex items-center gap-space-sm px-space-md py-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="vault-history" href="#"><span class="material-symbols-outlined text-[20px]">history</span><span class="font-body-md text-body-md">Vault Logs</span></a><a class="flex items-center gap-space-sm px-space-md py-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="algorithmic-tuner" href="#"><span class="material-symbols-outlined text-[20px]">tune</span><span class="font-body-md text-body-md">Algorithmic Tuner</span></a></nav></div><div class="px-space-sm"><div class="font-label-code-caps text-label-code-caps uppercase tracking-wider text-outline mb-space-sm font-semibold">Curatorial Watchlist</div><div class="p-space-md rounded-xl bg-surface-container border border-surface-container-highest"><div class="flex items-center justify-between text-body-sm font-body-sm text-on-surface-variant mb-space-xs"><span>Deep Cuts Queue</span><span class="font-label-numeric text-label-numeric text-secondary">42 Titles</span></div><div class="w-full bg-surface-container-highest h-1.5 rounded-full overflow-hidden"><div class="bg-primary-container h-full w-2/3"></div></div><p class="mt-space-sm font-label-code-caps text-label-code-caps text-outline">Target: 70s Japanese New Wave</p></div></div></div><div class="p-space-sm border-t border-surface-container-highest"><a class="flex items-center justify-between p-space-sm rounded-xl hover:bg-surface-container transition-colors" data-path="curator-profile" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-outline">settings</span><span class="font-body-sm text-body-sm text-on-surface-variant">Curator Settings</span></div><span class="font-label-code-caps text-label-code-caps text-tertiary">v2.4 AI</span></a></div></aside><div class="md:pl-64"><main class="w-full pt-16 bg-surface min-h-[calc(100vh-4rem)]"><div class="flex flex-col w-full">
+<!-- Subtle Ambient Glow Orbs -->
+<div class="relative w-full max-w-[1720px] mx-auto px-gutter-mobile md:px-gutter py-space-lg overflow-hidden">
+<div class="absolute -top-40 -left-20 w-96 h-96 bg-primary-container/10 rounded-full blur-[128px] pointer-events-none"></div>
+<div class="absolute top-1/3 -right-20 w-[30rem] h-[30rem] bg-secondary-container/5 rounded-full blur-[140px] pointer-events-none"></div>
+<!-- Header Meta Banner -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-space-sm mb-space-lg pb-space-md border-b border-surface-container-highest/40">
+<div class="flex items-center gap-space-md flex-wrap">
+<div class="flex items-center gap-space-xs px-space-sm py-1 rounded-full bg-surface-container-lowest border border-surface-container-highest">
+<span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
+<span class="font-label-code-caps text-label-code-caps uppercase tracking-wider text-tertiary">Realtime Sync #LB-8819</span>
+</div>
+<span class="text-on-surface-variant font-body-sm text-body-sm hidden sm:inline">Taste Profile: <strong class="text-on-surface font-semibold">Cinephile Arthouse (Tier S)</strong></span>
+<span class="text-surface-container-highest hidden sm:inline">|</span>
+<span class="text-on-surface-variant font-label-code-caps text-label-code-caps">418 Logs Imported • 34 Crew Vectors Active</span>
+</div>
+<div class="flex items-center gap-space-sm self-start md:self-auto">
+<span class="text-on-surface-variant font-label-numeric text-label-numeric">Match Confidence</span>
+<div class="flex items-center gap-1 px-space-sm py-0.5 rounded-lg bg-surface-container-high border border-surface-container-highest">
+<span class="font-label-numeric text-label-numeric text-primary font-bold">98.4%</span>
+<span class="material-symbols-outlined text-[14px] text-tertiary">verified</span>
+</div>
+</div>
+</div>
+<!-- Main Two-Column Split Architecture -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-xl items-start">
+<!-- ========================================== -->
+<!-- LEFT COLUMN: The Cinephile Control Panel (~35%) -->
+<!-- ========================================== -->
+<aside class="lg:col-span-4 xl:col-span-4 space-y-space-lg lg:sticky lg:top-20">
+<div class="rounded-xl bg-surface-container-lowest/80 backdrop-blur-2xl border border-surface-container-highest/80 shadow-[0_8px_32px_rgba(0,0,0,0.6)] p-space-lg space-y-space-lg">
+<!-- Panel Header -->
+<div class="flex items-center justify-between pb-space-sm border-b border-surface-container-highest/50">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary text-[20px]">tune</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface font-bold tracking-tight">1. Watch Preferences</h2>
+</div>
+<span class="px-space-sm py-0.5 rounded-full bg-secondary-container/20 border border-secondary/40 font-label-code-caps text-label-code-caps text-secondary font-semibold uppercase">
+              AI Algorithm v4.2
+            </span>
+</div>
+<!-- Section A: Family Safety Toggle -->
+<div class="flex items-center justify-between p-space-sm rounded-lg bg-surface-container/60 border border-surface-container-highest/40">
+<div class="space-y-0.5">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">shield</span>
+<span class="font-body-md text-body-md text-on-surface font-medium">Family-Friendly Filter</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Suppress graphic gore, severe dread &amp; extreme content</p>
+</div>
+<button aria-pressed="false" class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-surface-container-highest transition-colors duration-200 ease-in-out focus:outline-none" id="safetyToggle" type="button">
+<span class="translate-x-0 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-on-surface shadow ring-0 transition duration-200 ease-in-out" id="safetyToggleKnob"></span>
+</button>
+</div>
+<!-- Section B: Obscurity Slider ("Deep Crate Filter") -->
+<div class="space-y-space-sm p-space-sm rounded-lg bg-surface-container/30 border border-surface-container-highest/40">
+<div class="flex items-center justify-between">
+<label class="flex items-center gap-1.5 font-body-md text-body-md text-on-surface font-semibold" for="obscurityRange">
+<span class="material-symbols-outlined text-secondary text-[18px]">travel_explore</span>
+                Deep Crate Filter
+              </label>
+<span class="font-label-numeric text-label-numeric text-secondary font-bold px-2 py-0.5 rounded bg-secondary/10 border border-secondary/30" id="obscurityLabel">
+                Lvl 4: Deep Arthouse
+              </span>
+</div>
+<div class="relative pt-2 pb-1">
+<input class="w-full h-1.5 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-primary-container focus:outline-none" id="obscurityRange" max="5" min="1" step="1" type="range" value="4"/>
+<div class="flex justify-between text-body-sm text-body-sm text-outline mt-2 px-1 font-label-code-caps">
+<span>1: Hits</span>
+<span>2: Indie</span>
+<span>3: Festival</span>
+<span class="text-secondary font-semibold">4: Deep Arthouse</span>
+<span>5: Void Cult</span>
+</div>
+</div>
+<div class="p-2 rounded bg-surface-container-lowest border border-surface-container-highest/60 text-body-sm text-body-sm text-on-surface-variant flex items-start gap-2">
+<span class="material-symbols-outlined text-secondary text-[16px] flex-shrink-0 mt-0.5">info</span>
+<span>Prioritizes Cannes/Venice Grand Jury picks, 70s retrospectives, and unstreamable non-algorithmic prints.</span>
+</div>
+</div>
+<!-- Section C: Quick Vibe Pills -->
+<div class="space-y-space-xs">
+<span class="font-label-code-caps text-label-code-caps text-outline uppercase tracking-wider font-semibold block">
+              Atmospheric DNA &amp; Vibes
+            </span>
+<div class="flex flex-wrap gap-1.5" id="vibeContainer">
+<button class="vibe-pill px-space-sm py-1.5 rounded-full font-label-tag text-label-tag font-semibold transition-all border bg-primary-container text-on-primary-container border-primary-container shadow-[0_0_12px_rgba(229,9,20,0.35)]" type="button">
+                🧠 Mind-Bending
+              </button>
+<button class="vibe-pill px-space-sm py-1.5 rounded-full font-label-tag text-label-tag font-semibold transition-all border bg-surface-container text-on-surface-variant border-surface-container-highest hover:border-outline" type="button">
+                🌧️ Rainy Day
+              </button>
+<button class="vibe-pill px-space-sm py-1.5 rounded-full font-label-tag text-label-tag font-semibold transition-all border bg-primary-container text-on-primary-container border-primary-container shadow-[0_0_12px_rgba(229,9,20,0.35)]" type="button">
+                🔪 Dark Thriller
+              </button>
+<button class="vibe-pill px-space-sm py-1.5 rounded-full font-label-tag text-label-tag font-semibold transition-all border bg-surface-container text-on-surface-variant border-surface-container-highest hover:border-outline" type="button">
+                ☕ Feel-Good
+              </button>
+<button class="vibe-pill px-space-sm py-1.5 rounded-full font-label-tag text-label-tag font-semibold transition-all border bg-primary-container text-on-primary-container border-primary-container shadow-[0_0_12px_rgba(229,9,20,0.35)]" type="button">
+                🤯 Mind Twist
+              </button>
+<button class="vibe-pill px-space-sm py-1.5 rounded-full font-label-tag text-label-tag font-semibold transition-all border bg-surface-container text-on-surface-variant border-surface-container-highest hover:border-outline" type="button">
+                📼 90s Cyberpunk
+              </button>
+<button class="vibe-pill px-space-sm py-1.5 rounded-full font-label-tag text-label-tag font-semibold transition-all border bg-surface-container text-on-surface-variant border-surface-container-highest hover:border-outline" type="button">
+                🎭 Existential Dread
+              </button>
+</div>
+</div>
+<!-- Section D: Origin & Era -->
+<div class="grid grid-cols-1 gap-space-md">
+<!-- Regional Origin -->
+<div class="space-y-1">
+<label class="font-label-code-caps text-label-code-caps text-outline uppercase tracking-wider font-semibold">
+                Regional Origin Focus
+              </label>
+<div class="p-2 rounded-lg bg-surface-container-lowest border border-surface-container-highest focus-within:border-primary-container transition-all">
+<div class="flex flex-wrap gap-1 mb-1.5">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-container-high border border-surface-container-highest text-on-surface font-body-sm text-body-sm">
+                    South Korea <button class="hover:text-primary" type="button">×</button>
+</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-container-high border border-surface-container-highest text-on-surface font-body-sm text-body-sm">
+                    Japan <button class="hover:text-primary" type="button">×</button>
+</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-container-high border border-surface-container-highest text-on-surface font-body-sm text-body-sm">
+                    France <button class="hover:text-primary" type="button">×</button>
+</span>
+</div>
+<input class="w-full bg-transparent text-on-surface text-body-sm font-body-sm focus:outline-none placeholder:text-outline" placeholder="Add region (e.g. Nordic Noir, Hong Kong)..." type="text"/>
+</div>
+</div>
+<!-- Era / Release Window -->
+<div class="space-y-1">
+<label class="font-label-code-caps text-label-code-caps text-outline uppercase tracking-wider font-semibold">
+                Release Timeline Era
+              </label>
+<div class="grid grid-cols-2 gap-2">
+<button class="px-space-sm py-2 rounded-lg font-body-sm text-body-sm font-semibold bg-surface-container-high text-on-surface border border-primary-container shadow-[0_0_12px_rgba(229,9,20,0.2)] text-center" type="button">
+                  Post-2015 Modern
+                </button>
+<button class="px-space-sm py-2 rounded-lg font-body-sm text-body-sm font-semibold bg-surface-container-lowest text-on-surface-variant border border-surface-container-highest hover:text-on-surface text-center" type="button">
+                  Golden Age (70s-90s)
+                </button>
+</div>
+</div>
+</div>
+<!-- Section E: Blacklist / Exclusions -->
+<div class="space-y-1">
+<label class="font-label-code-caps text-label-code-caps text-outline uppercase tracking-wider font-semibold">
+              Curatorial Exclusions
+            </label>
+<div class="p-2 rounded-lg bg-surface-container-lowest border border-surface-container-highest">
+<div class="flex flex-wrap gap-1 mb-1.5">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-error-container/30 border border-error/30 text-error font-body-sm text-body-sm">
+                  Jump Scares <button class="hover:text-on-surface" type="button">×</button>
+</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-error-container/30 border border-error/30 text-error font-body-sm text-body-sm">
+                  Michael Bay Tropes <button class="hover:text-on-surface" type="button">×</button>
+</span>
+</div>
+<div class="flex items-center gap-2">
+<input class="flex-1 bg-transparent text-on-surface text-body-sm font-body-sm focus:outline-none placeholder:text-outline" placeholder="Add trope, actor, or director to blacklist..." type="text"/>
+<button class="px-2 py-1 rounded bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-body-sm font-semibold border border-surface-container-highest" type="button">
+                  + Add
+                </button>
+</div>
+</div>
+</div>
+<!-- Section F: Runtime Constraint -->
+<div class="space-y-1">
+<label class="font-label-code-caps text-label-code-caps text-outline uppercase tracking-wider font-semibold">
+              Runtime Aperture
+            </label>
+<div class="grid grid-cols-3 gap-1 p-1 rounded-xl bg-surface-container-lowest border border-surface-container-highest">
+<button class="py-1.5 rounded-lg text-body-sm font-body-sm text-on-surface-variant hover:text-on-surface transition-all text-center" type="button">
+                &lt; 90 min
+              </button>
+<button class="py-1.5 rounded-lg text-body-sm font-body-sm font-bold bg-primary-container text-on-primary-container shadow-[0_0_12px_rgba(229,9,20,0.4)] transition-all text-center" type="button">
+                ≤ 2 Hours
+              </button>
+<button class="py-1.5 rounded-lg text-body-sm font-body-sm text-on-surface-variant hover:text-on-surface transition-all text-center" type="button">
+                Epics 140m+
+              </button>
+</div>
+</div>
+<!-- Section G: Main Trigger Actions -->
+<div class="space-y-space-sm pt-space-xs">
+<button class="w-full py-3.5 px-space-lg rounded-full bg-primary-container text-on-primary-container font-headline-sm text-headline-sm font-bold tracking-tight flex items-center justify-center gap-2 shadow-[0_0_24px_rgba(229,9,20,0.55)] hover:shadow-[0_0_32px_rgba(229,9,20,0.85)] hover:scale-[1.01] active:scale-[0.99] transition-all" type="button">
+<span class="material-symbols-outlined text-[22px]">auto_awesome</span>
+              Generate Recommendations
+            </button>
+<button class="w-full py-2.5 px-space-md rounded-full bg-surface-container-high/80 hover:bg-surface-container-highest border border-surface-container-highest text-on-surface font-body-md text-body-md font-semibold flex items-center justify-center gap-2 transition-all hover:border-outline" type="button">
+<span class="material-symbols-outlined text-secondary text-[20px]">casino</span>
+              Surprise Me! (Wildcard Pick)
+            </button>
+<div class="text-center pt-1">
+<p class="font-label-code-caps text-label-code-caps text-outline">
+                Refreshed based on 418 logged films &amp; 34 crew affinities
+              </p>
+</div>
+</div>
+</div>
+</aside>
+<!-- ========================================== -->
+<!-- RIGHT COLUMN: Curated Recommendation Feed (~65%) -->
+<!-- ========================================== -->
+<section class="lg:col-span-8 xl:col-span-8 space-y-space-lg">
+<!-- 1. Taste Profile Summary Bento Card -->
+<div class="rounded-xl bg-gradient-to-br from-surface-container-low via-surface-container-lowest to-surface-container-low border border-surface-container-highest/90 p-space-lg relative overflow-hidden shadow-2xl">
+<div class="absolute -right-10 -bottom-10 w-64 h-64 bg-primary-container/10 rounded-full blur-[80px] pointer-events-none"></div>
+<div class="flex flex-col md:flex-row md:items-start justify-between gap-space-md relative z-10">
+<div>
+<div class="flex items-center gap-space-xs mb-1">
+<span class="material-symbols-outlined text-tertiary text-[18px]">neurology</span>
+<span class="font-label-code-caps text-label-code-caps uppercase tracking-wider text-tertiary font-semibold">User Cinematic DNA Breakdown</span>
+</div>
+<h3 class="font-headline-lg text-headline-lg text-on-surface font-extrabold tracking-tight">
+                Neo-Noir &amp; Mind-Bending Surrealist
+              </h3>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-xl mt-1">
+                Synthesized from high weights in non-linear chronology, rain-drenched chiaroscuro lighting, and morally gray investigator tropes.
+              </p>
+</div>
+<div class="flex items-center gap-2 self-start px-space-md py-1.5 rounded-full bg-surface-container-highest/70 border border-surface-container-highest">
+<span class="w-2.5 h-2.5 rounded-full bg-tertiary shadow-[0_0_8px_#4edea3]"></span>
+<span class="font-label-code-caps text-label-code-caps text-on-surface font-semibold">14 Regional Platforms Active</span>
+</div>
+</div>
+<!-- Affinity Bars & Director Tags -->
+<div class="mt-space-md pt-space-md border-t border-surface-container-highest/60 grid grid-cols-1 md:grid-cols-2 gap-space-md relative z-10">
+<!-- Left: Top Director Affinity Pills -->
+<div class="space-y-space-xs">
+<span class="font-label-code-caps text-label-code-caps text-outline uppercase tracking-wider font-semibold">
+                Director Affinity Weights
+              </span>
+<div class="flex flex-wrap gap-1.5">
+<span class="px-2.5 py-1 rounded-md bg-surface-container-high border border-surface-container-highest text-on-surface text-body-sm font-body-sm font-semibold flex items-center gap-1">
+                  Denis Villeneuve <strong class="text-primary font-label-numeric">98%</strong>
+</span>
+<span class="px-2.5 py-1 rounded-md bg-surface-container-high border border-surface-container-highest text-on-surface text-body-sm font-body-sm font-semibold flex items-center gap-1">
+                  David Fincher <strong class="text-primary font-label-numeric">94%</strong>
+</span>
+<span class="px-2.5 py-1 rounded-md bg-surface-container-high border border-surface-container-highest text-on-surface text-body-sm font-body-sm font-semibold flex items-center gap-1">
+                  Bong Joon-ho <strong class="text-primary font-label-numeric">91%</strong>
+</span>
+<span class="px-2.5 py-1 rounded-md bg-surface-container-high border border-surface-container-highest text-on-surface text-body-sm font-body-sm font-semibold flex items-center gap-1">
+                  Park Chan-wook <strong class="text-primary font-label-numeric">89%</strong>
+</span>
+</div>
+</div>
+<!-- Right: Vector mini telemetry -->
+<div class="space-y-2">
+<div class="flex justify-between items-center text-body-sm font-body-sm">
+<span class="text-on-surface-variant">Atmospheric Dread &amp; Tone</span>
+<span class="font-label-numeric text-label-numeric text-primary font-bold">92% Dense</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary-container rounded-full" style="width: 92%"></div>
+</div>
+<div class="flex justify-between items-center text-body-sm font-body-sm pt-1">
+<span class="text-on-surface-variant">Pacing Vector</span>
+<span class="font-label-numeric text-label-numeric text-secondary font-bold">Deliberate / Slow-Burn</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-secondary-container rounded-full" style="width: 78%"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- 2. Content Tabs & Sorting Control -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm pb-space-xs border-b border-surface-container-highest/60">
+<div class="flex items-center gap-space-sm overflow-x-auto pb-1 sm:pb-0">
+<button class="relative pb-2 px-1 font-body-md text-body-md font-bold text-on-surface flex items-center gap-1.5 flex-shrink-0" type="button">
+<span>Masterpiece Cohort</span>
+<span class="px-2 py-0.5 rounded-full bg-primary-container/20 text-primary border border-primary/30 font-label-numeric text-label-numeric font-bold">5</span>
+<span class="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-container shadow-[0_0_12px_#e50914]"></span>
+</button>
+<button class="pb-2 px-1 font-body-md text-body-md text-on-surface-variant hover:text-on-surface flex items-center gap-1.5 flex-shrink-0 transition-colors" type="button">
+<span>Excellent Gems</span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-label-numeric text-label-numeric">5</span>
+</button>
+<button class="pb-2 px-1 font-body-md text-body-md text-on-surface-variant hover:text-on-surface flex items-center gap-1.5 flex-shrink-0 transition-colors" type="button">
+<span>Crew Matches</span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-label-numeric text-label-numeric">3</span>
+</button>
+</div>
+<div class="flex items-center gap-space-xs flex-shrink-0">
+<span class="font-label-code-caps text-label-code-caps text-outline uppercase">Order:</span>
+<button class="flex items-center gap-1 px-space-sm py-1 rounded-lg bg-surface-container hover:bg-surface-container-high border border-surface-container-highest text-on-surface font-body-sm text-body-sm font-semibold transition-all" type="button">
+<span>Highest Match Affinity</span>
+<span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+</div>
+</div>
+<!-- 3. Recommendation Movie Cards Layout (Vertical Cinephile Cards) -->
+<div class="space-y-space-xl">
+<!-- ================= CARD 1: Memories of Murder ================= -->
+<article class="rounded-xl bg-surface-container-low/90 backdrop-blur-xl border border-surface-container-highest hover:border-primary-container/60 transition-all duration-300 shadow-[0_12px_36px_rgba(0,0,0,0.5)] overflow-hidden group">
+<div class="grid grid-cols-1 md:grid-cols-12 gap-0">
+<!-- Left Poster Column (md:col-span-4) -->
+<div class="md:col-span-4 relative min-h-[360px] md:min-h-full bg-surface-container-lowest overflow-hidden flex flex-col justify-end p-space-md">
+<img class="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out" data-alt="Cinematic atmospheric movie poster for Memories of Murder, misty rainy Korean countryside field at twilight, melancholic dark moody tones, film grain, deep shadows, cinematic noir lighting, 35mm aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA_Aw0ThY5ETKw1BspvDHzrW33Ibha93LOZooWhW91opxsC22X8H8Y_np4P2xNCTBKPDUEqRd5Wq7IO--PKJU1aKZymi9CapA4UOVTFUQZsy8Zp_H3xMC-KspWDOevbt6vGcfQHFzhDyMCAkuRxEidP7fHu3EXTwNK4CdIX90P0fgtPRpnO2orhwkLLPt_P-6Vk7bVma0U5VcWYYDHi1zR8G1iSDeeXXYD-qQvJ5PUz"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-lowest via-surface-container-lowest/40 to-transparent"></div>
+<div class="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-surface-container-low/90 hidden md:block"></div>
+<!-- Poster Overlays -->
+<div class="relative z-10 space-y-1">
+<span class="px-2 py-0.5 rounded bg-primary-container text-on-primary-container font-label-code-caps text-label-code-caps font-bold tracking-wider uppercase inline-block">
+                    Match 99.2%
+                  </span>
+<div class="text-on-surface font-label-code-caps text-label-code-caps opacity-80">
+                    Dir. Bong Joon-ho • 2003
+                  </div>
+</div>
+</div>
+<!-- Right Content Column (md:col-span-8) -->
+<div class="md:col-span-8 p-space-lg flex flex-col justify-between space-y-space-md">
+<div>
+<!-- Header Row & Metas -->
+<div class="flex flex-col sm:flex-row sm:items-start justify-between gap-space-xs mb-space-xs">
+<div>
+<div class="flex items-center gap-space-xs flex-wrap">
+<h4 class="font-headline-lg text-headline-lg text-on-surface font-extrabold tracking-tight">
+                          Memories of Murder
+                        </h4>
+<span class="font-body-md text-body-md text-on-surface-variant font-medium">(살인의 추억)</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline mt-0.5">South Korea 🇰🇷 • 2003 • 131 min</p>
+</div>
+<!-- Critical Badges -->
+<div class="flex items-center gap-1.5 flex-wrap sm:flex-nowrap flex-shrink-0">
+<span class="px-2.5 py-1 rounded-md bg-secondary-container/15 border border-secondary/40 text-secondary font-label-numeric text-label-numeric font-bold flex items-center gap-1">
+<span>★</span> 8.1 IMDb
+                      </span>
+<span class="px-2.5 py-1 rounded-md bg-surface-container-highest border border-surface-container-highest text-tertiary font-label-numeric text-label-numeric font-bold flex items-center gap-1">
+<span>●</span> 4.3 LB
+                      </span>
+</div>
+</div>
+<!-- Availability & Audio Badges -->
+<div class="flex flex-wrap items-center gap-1.5 my-space-xs">
+<span class="px-2.5 py-0.5 rounded-full bg-[#00A8E1]/20 border border-[#00A8E1]/40 text-[#5cd5ff] font-label-tag text-label-tag font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">play_circle</span> Prime Video
+                    </span>
+<span class="px-2.5 py-0.5 rounded-full bg-secondary-container/20 border border-secondary/30 text-secondary-fixed font-label-tag text-label-tag font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">verified</span> MUBI
+                    </span>
+<span class="px-2.5 py-0.5 rounded-full bg-surface-container-highest text-on-surface-variant font-label-tag text-label-tag flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">subtitles</span> Korean Audio • Eng + Multi Subtitles
+                    </span>
+</div>
+<!-- Content Advisory -->
+<div class="my-space-xs inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container-highest/60 text-secondary font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-[16px] text-secondary">warning</span>
+<span>Contains Psychological Tension &amp; Grim Investigation Procedures</span>
+</div>
+<!-- Spoiler-Free Premise -->
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed mt-space-xs">
+                    In a rural province in 1986, two vastly mismatched detectives struggle with crude methods and mounting obsession while tracking the nation's first recorded serial murderer.
+                  </p>
+<!-- Thematic Alignment Card (Curatorial Reason) -->
+<div class="mt-space-md p-space-md rounded-xl bg-surface-container-lowest/80 border border-primary-container/40 relative overflow-hidden">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-primary-container"></div>
+<div class="flex items-start gap-space-xs">
+<span class="material-symbols-outlined text-primary text-[20px] flex-shrink-0 mt-0.5">lightbulb</span>
+<div class="space-y-0.5">
+<span class="font-label-code-caps text-label-code-caps uppercase tracking-wider text-primary font-bold">
+                          Why this matches your 4.5-Star Crew DNA:
+                        </span>
+<p class="font-body-sm text-body-sm text-on-surface">
+                          Matches your top affinity for Bong Joon-ho's razor-sharp pacing, melancholic rain-soaked cinematography, and moral ambiguity seen in <em class="text-on-surface font-semibold">Zodiac</em> and <em class="text-on-surface font-semibold">Parasite</em>.
+                        </p>
+</div>
+</div>
+</div>
+</div>
+<!-- Card Action Footer -->
+<div class="pt-space-md border-t border-surface-container-highest/50 flex flex-wrap items-center justify-between gap-space-sm">
+<div class="flex items-center gap-2 flex-wrap">
+<button class="px-space-md py-2 rounded-full bg-primary-container/20 hover:bg-primary-container text-primary hover:text-on-primary-container border border-primary/50 font-body-sm text-body-sm font-semibold flex items-center gap-1.5 transition-all shadow-[0_0_12px_rgba(229,9,20,0.25)]" type="button">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+                      Watch 4K Trailer
+                    </button>
+<button class="px-space-md py-2 rounded-full bg-surface-container hover:bg-surface-container-high border border-surface-container-highest text-on-surface-variant hover:text-on-surface font-body-sm text-body-sm transition-all flex items-center gap-1.5" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility_off</span>
+                      Seen It / Replace
+                    </button>
+</div>
+<div class="flex items-center gap-2">
+<button aria-label="Share card" class="p-2 rounded-full bg-surface-container hover:bg-surface-container-high border border-surface-container-highest text-tertiary transition-all" title="Share Card to WhatsApp" type="button">
+<span class="material-symbols-outlined text-[18px]">share</span>
+</button>
+<button class="px-space-md py-2 rounded-full bg-surface-container-highest hover:bg-primary-container hover:text-on-primary-container text-on-surface font-body-sm text-body-sm font-semibold transition-all flex items-center gap-1" type="button">
+<span class="material-symbols-outlined text-[18px]">bookmark_add</span>
+                      Watchlist
+                    </button>
+</div>
+</div>
+</div>
+</div>
+</article>
+<!-- ================= CARD 2: Cure ================= -->
+<article class="rounded-xl bg-surface-container-low/90 backdrop-blur-xl border border-surface-container-highest hover:border-secondary/60 transition-all duration-300 shadow-[0_12px_36px_rgba(0,0,0,0.5)] overflow-hidden group">
+<div class="grid grid-cols-1 md:grid-cols-12 gap-0">
+<!-- Left Poster Column (md:col-span-4) -->
+<div class="md:col-span-4 relative min-h-[360px] md:min-h-full bg-surface-container-lowest overflow-hidden flex flex-col justify-end p-space-md">
+<img class="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out" data-alt="Tokyo neo-noir dark psychological thriller poster for Cure 1997, dimly lit concrete Tokyo apartment, clinical shadows, water dripping, enigmatic figure in coat, eerie hypnotic atmosphere, muted 90s cinephile film aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC1JolAfHIozLSgOPk_8Sjv_7pPN6iu-aJafTcDzOMhe6VQ3Pl9ePzwYKz-IbqCrqjWT1TYJMQ384Gdi3BEqQpTxon2VTv2-ywCFDIcWxyG3eM4pVF7bup7peO7urGzvSpiHFgcb25oISk4pnuPqHfisW8f7_O44CdR2oDFQxL0qEJkKzZFtLFqdERbSusuwwb-b5NwM90A0PLfBiThAcIydwIGWlN6-0gxvhlvDKcE"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-lowest via-surface-container-lowest/40 to-transparent"></div>
+<div class="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-surface-container-low/90 hidden md:block"></div>
+<div class="relative z-10 space-y-1">
+<span class="px-2 py-0.5 rounded bg-secondary-container text-on-secondary-container font-label-code-caps text-label-code-caps font-bold tracking-wider uppercase inline-block">
+                    Obscurity Lvl 4
+                  </span>
+<div class="text-on-surface font-label-code-caps text-label-code-caps opacity-80">
+                    Dir. Kiyoshi Kurosawa • 1997
+                  </div>
+</div>
+</div>
+<!-- Right Content Column (md:col-span-8) -->
+<div class="md:col-span-8 p-space-lg flex flex-col justify-between space-y-space-md">
+<div>
+<div class="flex flex-col sm:flex-row sm:items-start justify-between gap-space-xs mb-space-xs">
+<div>
+<div class="flex items-center gap-space-xs flex-wrap">
+<h4 class="font-headline-lg text-headline-lg text-on-surface font-extrabold tracking-tight">
+                          Cure
+                        </h4>
+<span class="font-body-md text-body-md text-on-surface-variant font-medium">(キュア)</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline mt-0.5">Japan 🇯🇵 • 1997 • 111 min</p>
+</div>
+<div class="flex items-center gap-1.5 flex-wrap sm:flex-nowrap flex-shrink-0">
+<span class="px-2.5 py-1 rounded-md bg-secondary-container/15 border border-secondary/40 text-secondary font-label-numeric text-label-numeric font-bold flex items-center gap-1">
+<span>★</span> 7.5 IMDb
+                      </span>
+<span class="px-2.5 py-1 rounded-md bg-surface-container-highest border border-surface-container-highest text-tertiary font-label-numeric text-label-numeric font-bold flex items-center gap-1">
+<span>●</span> 4.1 LB
+                      </span>
+</div>
+</div>
+<!-- Availability & Badges -->
+<div class="flex flex-wrap items-center gap-1.5 my-space-xs">
+<span class="px-2.5 py-0.5 rounded-full bg-surface-container-high border border-surface-container-highest text-on-surface font-label-tag text-label-tag font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px] text-primary">theaters</span> Criterion Channel
+                    </span>
+<span class="px-2.5 py-0.5 rounded-full bg-surface-container-high border border-surface-container-highest text-on-surface font-label-tag text-label-tag font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">shopping_bag</span> Rent on Apple TV
+                    </span>
+<span class="px-2.5 py-0.5 rounded-full bg-surface-container-highest text-on-surface-variant font-label-tag text-label-tag flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">subtitles</span> Japanese Audio • English Subtitles
+                    </span>
+</div>
+<!-- Content Advisory -->
+<div class="my-space-xs inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container-highest/60 text-secondary font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-[16px] text-secondary">psychology_alt</span>
+<span>Hypnotic Psychological Thriller &amp; Existential Themes</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed mt-space-xs">
+                    A detective with a troubled personal life investigates a string of bizarre, gruesome murders committed by people who retain no recollection of their deeds after encountering a mysterious amnesiac.
+                  </p>
+<!-- Thematic Alignment Box -->
+<div class="mt-space-md p-space-md rounded-xl bg-surface-container-lowest/80 border border-secondary/30 relative overflow-hidden">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-secondary"></div>
+<div class="flex items-start gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[20px] flex-shrink-0 mt-0.5">lightbulb</span>
+<div class="space-y-0.5">
+<span class="font-label-code-caps text-label-code-caps uppercase tracking-wider text-secondary font-bold">
+                          Why this matches your 4.5-Star Crew DNA:
+                        </span>
+<p class="font-body-sm text-body-sm text-on-surface">
+                          Fits your Obscurity Level 4 setting perfectly. Shares the clinical detachment, creeping dread, and hypnotic sound design of David Fincher's <em class="text-on-surface font-semibold">Seven</em>.
+                        </p>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer -->
+<div class="pt-space-md border-t border-surface-container-highest/50 flex flex-wrap items-center justify-between gap-space-sm">
+<div class="flex items-center gap-2 flex-wrap">
+<button class="px-space-md py-2 rounded-full bg-surface-container hover:bg-surface-container-high border border-surface-container-highest text-on-surface font-body-sm text-body-sm font-semibold flex items-center gap-1.5 transition-all" type="button">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+                      Watch Trailer
+                    </button>
+<button class="px-space-md py-2 rounded-full bg-surface-container hover:bg-surface-container-high border border-surface-container-highest text-on-surface-variant hover:text-on-surface font-body-sm text-body-sm transition-all flex items-center gap-1.5" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility_off</span>
+                      Seen It / Replace
+                    </button>
+</div>
+<div class="flex items-center gap-2">
+<button aria-label="Share card" class="p-2 rounded-full bg-surface-container hover:bg-surface-container-high border border-surface-container-highest text-tertiary transition-all" title="Share Card to WhatsApp" type="button">
+<span class="material-symbols-outlined text-[18px]">share</span>
+</button>
+<button class="px-space-md py-2 rounded-full bg-surface-container-highest hover:bg-primary-container hover:text-on-primary-container text-on-surface font-body-sm text-body-sm font-semibold transition-all flex items-center gap-1" type="button">
+<span class="material-symbols-outlined text-[18px]">bookmark_add</span>
+                      Watchlist
+                    </button>
+</div>
+</div>
+</div>
+</div>
+</article>
+<!-- ================= CARD 3: Burning ================= -->
+<article class="rounded-xl bg-surface-container-low/90 backdrop-blur-xl border border-surface-container-highest hover:border-tertiary/60 transition-all duration-300 shadow-[0_12px_36px_rgba(0,0,0,0.5)] overflow-hidden group">
+<div class="grid grid-cols-1 md:grid-cols-12 gap-0">
+<!-- Left Poster Column (md:col-span-4) -->
+<div class="md:col-span-4 relative min-h-[360px] md:min-h-full bg-surface-container-lowest overflow-hidden flex flex-col justify-end p-space-md">
+<img class="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out" data-alt="Golden hour twilight mystery film poster for Burning 2018, sunset silhouette of dancing figure against glowing amber and indigo horizon, rural Korean barn setting, haunting enigmatic tone, rich visual scale, high end cinematography" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDhLnabVAbPGfHQ-X86Pr_Pkd1-Z6_oUN2P6qux0GoiYGGioJkjzEmufRZyLpHtZvk-EqBhI1h5Lh59zqF0tVkpkTAfBUxvhNsJ5LJTPQxEdv-hP86yxRa0klqEZ9WPQMsBtOucP-C5GFahJp4xYSzJObPebMFUN5kdp-s-fLApu8vDIbk7kbukCCKGd0I9hE_iFQkK23VfEKU1YSNVoyExhL8CZ3rBrHVYLx2GNaaa"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-lowest via-surface-container-lowest/40 to-transparent"></div>
+<div class="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-surface-container-low/90 hidden md:block"></div>
+<div class="relative z-10 space-y-1">
+<span class="px-2 py-0.5 rounded bg-tertiary-container text-on-tertiary-container font-label-code-caps text-label-code-caps font-bold tracking-wider uppercase inline-block">
+                    Cannes FIPRESCI Winner
+                  </span>
+<div class="text-on-surface font-label-code-caps text-label-code-caps opacity-80">
+                    Dir. Lee Chang-dong • 2018
+                  </div>
+</div>
+</div>
+<!-- Right Content Column (md:col-span-8) -->
+<div class="md:col-span-8 p-space-lg flex flex-col justify-between space-y-space-md">
+<div>
+<div class="flex flex-col sm:flex-row sm:items-start justify-between gap-space-xs mb-space-xs">
+<div>
+<div class="flex items-center gap-space-xs flex-wrap">
+<h4 class="font-headline-lg text-headline-lg text-on-surface font-extrabold tracking-tight">
+                          Burning
+                        </h4>
+<span class="font-body-md text-body-md text-on-surface-variant font-medium">(버닝)</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline mt-0.5">South Korea 🇰🇷 • 2018 • 148 min</p>
+</div>
+<div class="flex items-center gap-1.5 flex-wrap sm:flex-nowrap flex-shrink-0">
+<span class="px-2.5 py-1 rounded-md bg-secondary-container/15 border border-secondary/40 text-secondary font-label-numeric text-label-numeric font-bold flex items-center gap-1">
+<span>★</span> 7.5 IMDb
+                      </span>
+<span class="px-2.5 py-1 rounded-md bg-surface-container-highest border border-surface-container-highest text-tertiary font-label-numeric text-label-numeric font-bold flex items-center gap-1">
+<span>●</span> 4.0 LB
+                      </span>
+</div>
+</div>
+<!-- Availability & Badges -->
+<div class="flex flex-wrap items-center gap-1.5 my-space-xs">
+<span class="px-2.5 py-0.5 rounded-full bg-primary-container/20 border border-primary-container/40 text-primary font-label-tag text-label-tag font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">play_circle</span> Netflix
+                    </span>
+<span class="px-2.5 py-0.5 rounded-full bg-secondary-container/20 border border-secondary/30 text-secondary-fixed font-label-tag text-label-tag font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">verified</span> MUBI
+                    </span>
+<span class="px-2.5 py-0.5 rounded-full bg-surface-container-highest text-on-surface-variant font-label-tag text-label-tag flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">spatial_audio</span> Korean Atmos • 4K UHD • Eng Sub
+                    </span>
+</div>
+<!-- Content Advisory -->
+<div class="my-space-xs inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container-highest/60 text-secondary font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-[16px] text-secondary">hourglass_top</span>
+<span>Slow-burn Tension &amp; Ambiguous Enigma</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed mt-space-xs">
+                    An aspiring young writer becomes entangled with an enigmatic acquaintance from his village and the wealthy, charismatic man she meets on a trip to Africa, leading to an obsessive disappearance.
+                  </p>
+<!-- Thematic Alignment Box -->
+<div class="mt-space-md p-space-md rounded-xl bg-surface-container-lowest/80 border border-tertiary/30 relative overflow-hidden">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-tertiary"></div>
+<div class="flex items-start gap-space-xs">
+<span class="material-symbols-outlined text-tertiary text-[20px] flex-shrink-0 mt-0.5">lightbulb</span>
+<div class="space-y-0.5">
+<span class="font-label-code-caps text-label-code-caps uppercase tracking-wider text-tertiary font-bold">
+                          Why this matches your 4.5-Star Crew DNA:
+                        </span>
+<p class="font-body-sm text-body-sm text-on-surface">
+                          Haruki Murakami adaptation echoing your high rating for <em class="text-on-surface font-semibold">Drive My Car</em>. Exceptional ambient natural lighting and class friction matching your taste graph.
+                        </p>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer -->
+<div class="pt-space-md border-t border-surface-container-highest/50 flex flex-wrap items-center justify-between gap-space-sm">
+<div class="flex items-center gap-2 flex-wrap">
+<button class="px-space-md py-2 rounded-full bg-surface-container hover:bg-surface-container-high border border-surface-container-highest text-on-surface font-body-sm text-body-sm font-semibold flex items-center gap-1.5 transition-all" type="button">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+                      Watch Trailer
+                    </button>
+<button class="px-space-md py-2 rounded-full bg-surface-container hover:bg-surface-container-high border border-surface-container-highest text-on-surface-variant hover:text-on-surface font-body-sm text-body-sm transition-all flex items-center gap-1.5" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility_off</span>
+                      Seen It / Replace
+                    </button>
+</div>
+<div class="flex items-center gap-2">
+<button aria-label="Share card" class="p-2 rounded-full bg-surface-container hover:bg-surface-container-high border border-surface-container-highest text-tertiary transition-all" title="Share Card to WhatsApp" type="button">
+<span class="material-symbols-outlined text-[18px]">share</span>
+</button>
+<button class="px-space-md py-2 rounded-full bg-surface-container-highest hover:bg-primary-container hover:text-on-primary-container text-on-surface font-body-sm text-body-sm font-semibold transition-all flex items-center gap-1" type="button">
+<span class="material-symbols-outlined text-[18px]">bookmark_add</span>
+                      Watchlist
+                    </button>
+</div>
+</div>
+</div>
+</div>
+</article>
+</div>
+<!-- 4. Bottom Feed Helper & Exporters -->
+<div class="pt-space-md flex flex-col sm:flex-row items-center justify-between gap-space-md pb-space-xl">
+<button class="w-full sm:w-auto px-space-xl py-3 rounded-full bg-surface-container-high hover:bg-surface-container-highest border border-surface-container-highest text-on-surface font-body-md text-body-md font-bold transition-all shadow-lg hover:shadow-primary-container/20 flex items-center justify-center gap-2" type="button">
+<span class="material-symbols-outlined text-[20px] text-primary">autorenew</span>
+            Load 2 More from Masterpiece Cohort
+          </button>
+<div class="flex items-center gap-space-sm text-body-sm text-body-sm text-outline flex-wrap justify-center">
+<span class="font-label-code-caps text-label-code-caps uppercase tracking-wider">Quick Export:</span>
+<button class="hover:text-primary transition-colors flex items-center gap-1 text-on-surface-variant font-medium" type="button">
+<span class="material-symbols-outlined text-[16px]">file_download</span> Letterboxd List (.csv)
+            </button>
+<span class="text-surface-container-highest">•</span>
+<button class="hover:text-tertiary transition-colors flex items-center gap-1 text-on-surface-variant font-medium" type="button">
+<span class="material-symbols-outlined text-[16px]">sync</span> Sync to Trakt.tv
+            </button>
+</div>
+</div>
+</section>
+</div>
+</div>
+<!-- Interactive Logic for Dashboard -->
+<script>
+    // 1. Safety Toggle Interaction
+    const safetyToggle = document.getElementById('safetyToggle');
+    const safetyKnob = document.getElementById('safetyToggleKnob');
+    let isSafetyOn = false;
+
+    if (safetyToggle && safetyKnob) {
+      safetyToggle.addEventListener('click', () => {
+        isSafetyOn = !isSafetyOn;
+        safetyToggle.setAttribute('aria-pressed', isSafetyOn);
+        if (isSafetyOn) {
+          safetyToggle.classList.remove('bg-surface-container-highest');
+          safetyToggle.classList.add('bg-tertiary-container');
+          safetyKnob.classList.remove('translate-x-0');
+          safetyKnob.classList.add('translate-x-5');
+        } else {
+          safetyToggle.classList.add('bg-surface-container-highest');
+          safetyToggle.classList.remove('bg-tertiary-container');
+          safetyKnob.classList.add('translate-x-0');
+          safetyKnob.classList.remove('translate-x-5');
+        }
+      });
+    }
+
+    // 2. Obscurity Slider Text Readout
+    const obscurityRange = document.getElementById('obscurityRange');
+    const obscurityLabel = document.getElementById('obscurityLabel');
+    const obscurityLabels = {
+      '1': 'Lvl 1: Mainstream Hits',
+      '2': 'Lvl 2: Indiewire Circuit',
+      '3': 'Lvl 3: Festival Curations',
+      '4': 'Lvl 4: Deep Arthouse',
+      '5': 'Lvl 5: Underground Cult'
+    };
+
+    if (obscurityRange && obscurityLabel) {
+      obscurityRange.addEventListener('input', (e) => {
+        const val = e.target.value;
+        obscurityLabel.textContent = obscurityLabels[val] || `Lvl ${val}`;
+      });
+    }
+
+    // 3. Multi-Select Vibe Pills
+    const vibeContainer = document.getElementById('vibeContainer');
+    if (vibeContainer) {
+      vibeContainer.addEventListener('click', (e) => {
+        const btn = e.target.closest('.vibe-pill');
+        if (!btn) return;
+        const isActive = btn.classList.contains('bg-primary-container');
+        if (isActive) {
+          btn.classList.remove('bg-primary-container', 'text-on-primary-container', 'border-primary-container', 'shadow-[0_0_12px_rgba(229,9,20,0.35)]');
+          btn.classList.add('bg-surface-container', 'text-on-surface-variant', 'border-surface-container-highest');
+        } else {
+          btn.classList.add('bg-primary-container', 'text-on-primary-container', 'border-primary-container', 'shadow-[0_0_12px_rgba(229,9,20,0.35)]');
+          btn.classList.remove('bg-surface-container', 'text-on-surface-variant', 'border-surface-container-highest');
+        }
+      });
+    }
+  </script>
+</div></main></div></body></html>

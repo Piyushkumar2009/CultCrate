@@ -1,0 +1,177 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-obsidian: #090D16;
+  --color-obsidian-deep: #06090F;
+  --color-slate-card: #121620;
+  --color-slate-card-hover: #191F2C;
+  --color-slate-border: #232936;
+  --color-slate-border-glow: #384256;
+  --color-crimson: #E50914;
+  --color-crimson-hover: #F40612;
+  --color-crimson-subtle: rgba(229, 9, 20, 0.15);
+  --color-gold: #F59E0B;
+  --color-gold-subtle: rgba(245, 158, 11, 0.15);
+  --color-emerald: #4EDEAE;
+  --color-emerald-subtle: rgba(78, 222, 174, 0.15);
+  --color-crisp: #F9FAFB;
+  --color-muted: #9CA3AF;
+  --color-dimmed: #6B7280;
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  body {
+    background-color: var(--color-obsidian);
+    color: var(--color-crisp);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Keeps content clear of phone notches and home indicators */
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  /* Quiet, consistent keyboard focus ring in the brand red */
+  :where(a, button, input, select, textarea, [role='button']):focus-visible {
+    outline: 2px solid rgba(229, 9, 20, 0.75);
+    outline-offset: 2px;
+  }
+  /* 16px inputs stop iOS from zooming the page when a field is tapped */
+  @media (max-width: 640px) {
+    input:not([type='checkbox']):not([type='radio']),
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* Custom cinematic grain / vignette & glow styles */
+.cinema-glow {
+  box-shadow: 0 0 40px -10px rgba(229, 9, 20, 0.35);
+}
+
+.cinema-glow-lg {
+  box-shadow: 0 0 60px -10px rgba(229, 9, 20, 0.5);
+}
+
+.gold-glow {
+  box-shadow: 0 0 30px -8px rgba(245, 158, 11, 0.35);
+}
+
+.emerald-glow {
+  box-shadow: 0 0 30px -8px rgba(78, 222, 174, 0.35);
+}
+
+/* Subtle glassmorphic background */
+.glass-panel {
+  background: rgba(18, 22, 32, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid #232936;
+}
+
+.glass-panel-elevated {
+  background: rgba(18, 22, 32, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid #2a3242;
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #090D16;
+}
+::-webkit-scrollbar-thumb {
+  background: #232936;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #E50914;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* CultCrate design system: shared surfaces                            */
+/* ------------------------------------------------------------------ */
+
+/* Standard card surface: deep slate, hairline border, soft inner highlight */
+.cc-panel {
+  position: relative;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(13, 17, 26, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 24px 48px -28px rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+/* Small uppercase section label */
+.cc-eyebrow {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* Modals never exceed the visible screen, even with mobile browser bars */
+.cc-modal-scroll {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Bottom padding that respects the iPhone home indicator */
+.cc-safe-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+}
+
+/* Horizontal chip rows scroll instead of clipping on narrow phones */
+.cc-scroll-x {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.cc-scroll-x::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---- Announcement bar ticker: long messages scroll instead of being cut off ---- */
+@keyframes cc-ticker-once {
+  from { transform: translateX(0); }
+  to { transform: translateX(var(--ticker-shift)); }
+}
+@keyframes cc-ticker-loop {
+  0%, 12% { transform: translateX(0); }
+  88%, 100% { transform: translateX(var(--ticker-shift)); }
+}
+/* one pass: short pause at the start, scroll to the end, hold there (the component then moves on) */
+.cc-ticker-once { animation: cc-ticker-once var(--ticker-dur) linear 1s 1 both; }
+/* a single announcement: ping-pong back and forth forever */
+.cc-ticker-loop { animation: cc-ticker-loop var(--ticker-dur) ease-in-out 0s infinite alternate both; }
+.cc-ticker-paused { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .cc-ticker-once, .cc-ticker-loop { animation: none; }
+}

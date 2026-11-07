@@ -1,0 +1,6 @@
+{
+  "name": "CultCrate",
+  "description": "AI-powered film recommendation platform and screening vault calibrated by Letterboxd history and curatorial obscurity.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
