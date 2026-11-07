@@ -66,8 +66,12 @@ export async function GET(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || SUPABASE_PUBLISHER_KEY;
 
   try {
+    // A recovery (password reset) link always lands on /reset-password, whatever ?next= says.
+    const isRecoveryLink = tokenHash !== null && otpType === 'recovery';
+    const successPath = isRecoveryLink ? '/reset-password' : next;
+
     // Success target; session cookies are attached to this response below.
-    const response = NextResponse.redirect(new URL(next, origin));
+    const response = NextResponse.redirect(new URL(successPath, origin));
 
     const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {
