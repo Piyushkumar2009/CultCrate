@@ -12,6 +12,8 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
+import { useLetterboxdValidation } from '@/hooks/useLetterboxdValidation';
+import { LetterboxdStatusHint, letterboxdInputTone } from '@/components/LetterboxdStatusHint';
 
 export interface EditProfileModalProps {
   isOpen: boolean;
@@ -31,6 +33,8 @@ export function EditProfileModal({
   onProfileUpdated,
 }: EditProfileModalProps) {
   const [handle, setHandle] = useState<string>(currentHandle);
+  // The username already saved on the account. It is accepted as-is, so only changes get checked.
+  const [savedHandle, setSavedHandle] = useState<string>(currentHandle);
   const [isFamilySafe, setIsFamilySafe] = useState<boolean>(false);
   const [customRssUrl, setCustomRssUrl] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -43,6 +47,7 @@ export function EditProfileModal({
     setPrevIsOpen(isOpen);
     if (isOpen) {
       setHandle(currentHandle);
+      setSavedHandle(currentHandle);
       setSuccessMessage(null);
       setErrorMessage(null);
     }
@@ -69,7 +74,10 @@ export function EditProfileModal({
           const storedHandle =
             (typeof meta.letterboxd_username === 'string' && meta.letterboxd_username) ||
             (profile && typeof profile.letterboxd_username === 'string' ? profile.letterboxd_username : '');
-          if (storedHandle) setHandle(storedHandle);
+          if (storedHandle) {
+            setHandle(storedHandle);
+            setSavedHandle(storedHandle);
+          }
 
           if (profile && typeof profile.family_safe_mode === 'boolean') {
             setIsFamilySafe(profile.family_safe_mode);
@@ -101,6 +109,9 @@ export function EditProfileModal({
 
   const cleanHandle = handle.trim().replace(/^@/, '');
 
+  // Live Letterboxd username check (debounced 500ms) while the modal is open
+  const letterboxd = useLetterboxdValidation(handle, { enabled: isOpen, skipValue: savedHandle });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSaving) return;
@@ -115,6 +126,15 @@ export function EditProfileModal({
 
     if (!/^[a-zA-Z0-9_-]+$/.test(cleanHandle)) {
       setErrorMessage('Usernames can only use letters, numbers, hyphens and underscores.');
+      return;
+    }
+
+    if (!letterboxd.canSubmit) {
+      setErrorMessage(
+        letterboxd.status === 'checking'
+          ? 'Hang on, we\'re still checking that Letterboxd username.'
+          : letterboxd.message || 'Please enter a valid Letterboxd username.'
+      );
       return;
     }
 
@@ -348,13 +368,24 @@ export function EditProfileModal({
                   onChange={(e) => setHandle(e.target.value)}
                   placeholder="your_letterboxd_handle"
                   disabled={isSaving}
-                  className="w-full bg-[#121622] border border-[#232936] text-white text-sm rounded-xl pl-8 pr-4 py-2.5 focus:outline-none focus:border-[#E50914] focus:ring-1 focus:ring-[#E50914] placeholder-zinc-600 font-sans transition-colors disabled:opacity-50"
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  aria-invalid={letterboxd.status === 'invalid'}
+                  className={`w-full bg-[#121622] border ${letterboxdInputTone(
+                    letterboxd.status
+                  )} text-white text-sm rounded-xl pl-8 pr-4 py-2.5 focus:outline-none focus:ring-1 placeholder-zinc-600 font-sans transition-colors disabled:opacity-50`}
                   required
                 />
               </div>
-              <p className="text-[11px] text-[#9CA3AF] leading-relaxed">
-                We use this to read your public Letterboxd diary and build your Cinematic DNA.
-              </p>
+              {letterboxd.status === 'idle' ? (
+                <p className="text-[11px] text-[#9CA3AF] leading-relaxed">
+                  We use this to read your public Letterboxd diary and build your Cinematic DNA.
+                </p>
+              ) : (
+                <LetterboxdStatusHint status={letterboxd.status} message={letterboxd.message} />
+              )}
             </div>
 
             {/* Family-Friendly Filter Toggle */}
@@ -400,7 +431,7 @@ export function EditProfileModal({
 
               <button
                 type="submit"
-                disabled={isSaving}
+                disabled={isSaving || letterboxd.status === 'checking' || letterboxd.status === 'invalid'}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E50914] hover:bg-[#B80710] text-white text-xs font-sans font-bold shadow-[0_0_20px_rgba(229,9,20,0.4)] transition-all cursor-pointer active:scale-95 disabled:opacity-50"
               >
                 {isSaving ? (

@@ -27,6 +27,8 @@ import {
   SUPABASE_URL,
   SUPABASE_PUBLISHER_KEY,
 } from '@/utils/supabase/client';
+import { useLetterboxdValidation } from '@/hooks/useLetterboxdValidation';
+import { LetterboxdStatusHint, letterboxdInputTone } from '@/components/LetterboxdStatusHint';
 
 /** Where to go after authenticating: a same-origin ?redirect= path (e.g. /watchlist), else the dashboard. */
 function getPostAuthTarget(): string {
@@ -87,6 +89,9 @@ export function AuthScreen({ onReturn, onSuccess, initialTab = 'signin' }: AuthS
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || SUPABASE_PUBLISHER_KEY;
     return createBrowserClient(url, key);
   }, []);
+
+  // Live Letterboxd username check (debounced 500ms), only while creating an account
+  const letterboxd = useLetterboxdValidation(letterboxdUsername, { enabled: activeTab === 'signup' });
 
   // Cooldown countdown effect for Resend Link
   useEffect(() => {
@@ -173,6 +178,14 @@ export function AuthScreen({ onReturn, onSuccess, initialTab = 'signin' }: AuthS
 
         if (!cleanLetterboxd) {
           throw new Error('Please add your Letterboxd username so we can build your Cinematic DNA.');
+        }
+
+        if (!letterboxd.canSubmit) {
+          throw new Error(
+            letterboxd.status === 'checking'
+              ? 'Hang on, we\'re still checking that Letterboxd username.'
+              : letterboxd.message || 'Please enter a valid Letterboxd username.'
+          );
         }
 
         setAuthNotice('Creating your account...');
@@ -557,12 +570,23 @@ export function AuthScreen({ onReturn, onSuccess, initialTab = 'signin' }: AuthS
                           value={letterboxdUsername}
                           onChange={(e) => setLetterboxdUsername(e.target.value)}
                           placeholder="e.g. cinephile_99"
-                          className="w-full pl-9 pr-3.5 py-2.5 bg-[#090D16]/90 border border-[#232936] focus:border-[#E50914] rounded-xl text-xs text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-[#E50914] transition-all font-sans"
+                          autoCapitalize="none"
+                          autoComplete="off"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          aria-invalid={letterboxd.status === 'invalid'}
+                          className={`w-full pl-9 pr-3.5 py-2.5 bg-[#090D16]/90 border ${letterboxdInputTone(
+                            letterboxd.status
+                          )} rounded-xl text-xs text-white placeholder-gray-600 focus:outline-none focus:ring-1 transition-all font-sans`}
                         />
                       </div>
-                      <p className="font-sans text-[10px] text-[#9CA3AF]">
-                        We use this to read your public Letterboxd diary.
-                      </p>
+                      {letterboxd.status === 'idle' ? (
+                        <p className="font-sans text-[10px] text-[#9CA3AF]">
+                          We use this to read your public Letterboxd diary.
+                        </p>
+                      ) : (
+                        <LetterboxdStatusHint status={letterboxd.status} message={letterboxd.message} />
+                      )}
                     </motion.div>
                   )}
 
@@ -647,7 +671,11 @@ export function AuthScreen({ onReturn, onSuccess, initialTab = 'signin' }: AuthS
                   <div className="pt-2">
                     <button
                       type="submit"
-                      disabled={isLoading}
+                      disabled={
+                        isLoading ||
+                        (activeTab === 'signup' &&
+                          (letterboxd.status === 'checking' || letterboxd.status === 'invalid'))
+                      }
                       className="w-full relative py-2.5 px-4 rounded-xl bg-[#E50914] hover:bg-[#B80710] text-white text-sm font-semibold tracking-wide transition-all duration-200 shadow-[0_0_30px_rgba(229,9,20,0.35)] hover:shadow-[0_0_40px_rgba(229,9,20,0.6)] flex items-center justify-center gap-2 group disabled:opacity-75 disabled:cursor-not-allowed active:scale-[0.99] cursor-pointer"
                     >
                       {isLoading ? (
