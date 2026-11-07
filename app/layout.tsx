@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import SiteAnnouncementBanner from '@/components/SiteAnnouncementBanner';
 
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://cultcrate.com';
+const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://cultcrate.vercel.app';
 const SITE_NAME = 'CultCrate';
 const DEFAULT_TITLE = 'CultCrate — The Ultimate Cinematic Archive';
 const DESCRIPTION =
