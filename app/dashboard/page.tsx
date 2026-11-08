@@ -25,6 +25,7 @@ import { useLetterboxdRssSync } from '@/hooks/useLetterboxdRssSync';
 import { deduplicateWatchlist } from '@/lib/deduplication';
 import { pickLetterboxdHandle } from '@/lib/letterboxdRss';
 import { clearClientStorage, downloadRatingsCsv, withTimeout, type CsvDownloadResult } from '@/lib/vaultStorage';
+import { ENGINE_REQUEST_TIMEOUT_MS, failedResponseMessage, friendlyEngineError } from '@/lib/engineErrors';
 import {
   type WatchlistFilm,
   getLocalWatchlist,
@@ -639,8 +640,11 @@ export default function DashboardPage() {
   // RUN CULTCRATE AI ENGINE
   // ===========================================================================
   const handleRunCultCrateAI = async (): Promise<void> => {
-    if (!user) return;
+    if (!user || isSynthesizing) return; // ignore double clicks while a run is in progress
     setIsSynthesizing(true);
+    // Never leave the spinner running forever: give up cleanly if the engine does not answer in time.
+    const requestController = new AbortController();
+    const requestTimer = setTimeout(() => requestController.abort(), ENGINE_REQUEST_TIMEOUT_MS);
     setErrorMessage(null);
     setAiNotice(null);
 
@@ -677,6 +681,7 @@ export default function DashboardPage() {
       const response = await fetch('/api/recommendations', {
         method: 'POST',
         cache: 'no-store',
+        signal: requestController.signal,
         headers: {
           'Content-Type': 'application/json',
           ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
@@ -692,17 +697,15 @@ export default function DashboardPage() {
       setLiveExecutionStep('Picking your films...');
 
       if (!response.ok) {
-        let exactErrorMessage = `Recommendations endpoint returned HTTP status ${response.status}`;
         const raw = await response.text().catch(() => '');
+        let serverMessage = '';
         try {
           const parsed: unknown = JSON.parse(raw);
-          if (isRecord(parsed)) {
-            exactErrorMessage = firstText(parsed.error, parsed.message) || exactErrorMessage;
-          }
+          if (isRecord(parsed)) serverMessage = firstText(parsed.error, parsed.message);
         } catch {
-          if (raw) exactErrorMessage = raw;
+          /* not JSON: a platform error page, handled below */
         }
-        throw new Error(exactErrorMessage);
+        throw new Error(failedResponseMessage(response.status, serverMessage, raw));
       }
 
       const data: unknown = await response.json().catch(() => null);
@@ -816,9 +819,10 @@ export default function DashboardPage() {
       setLiveExecutionStep(null);
     } catch (err: unknown) {
       console.error('Synthesis error:', err);
-      setErrorMessage(err instanceof Error ? err.message : String(err));
+      setErrorMessage(friendlyEngineError(err));
       setLiveExecutionStep(null);
     } finally {
+      clearTimeout(requestTimer);
       setIsSynthesizing(false);
     }
   };

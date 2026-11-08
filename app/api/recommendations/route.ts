@@ -5,12 +5,25 @@ import { generateContentWithFallback, GeminiFallbackError } from '@/lib/geminiMo
 import { downloadRatingsCsv } from '@/lib/vaultStorage';
 import { createClient } from '@/utils/supabase/server';
 import { fetchLetterboxdRSSFeed, ParsedRSSEntry, pickLetterboxdHandle } from '@/lib/letterboxdRss';
+import { selectTasteSignals, type TasteSignal } from '@/lib/tasteSignals';
+
+// ---------------------------------------------------------------------------
+// Time and size budget. The platform kills a function that runs past maxDuration, and the browser only sees a
+// dropped connection. So the Gemini step gets whatever is left of the budget and gives up cleanly before then.
+// ---------------------------------------------------------------------------
+export const maxDuration = 60; // seconds. Raise to 300 if Fluid Compute is enabled for the project.
+const FUNCTION_BUDGET_MS = maxDuration * 1000;
+const RESPONSE_RESERVE_MS = 8_000; // kept free for de-duplication and sending the response
+const GEMINI_ATTEMPT_TIMEOUT_MS = 45_000; // longest a single model call may take
+const MAX_FILMS_PER_COHORT = 12; // caps the AI's output, which is what takes the longest to generate
+const MAX_BLACKLIST_TITLES_IN_PROMPT = 120; // the full list is still removed from the results afterwards
+const CANDIDATE_RATING_FLOOR = 3.5; // lowest rating the selector may fall back to
 
 /**
  * Strict System Instruction for Gemini
- * Mandate: Analyze highly rated films (3.5-5.0 stars), recommend NEW movies, never recommend films from the watchlist.
+ * Mandate: Analyze highly rated films (4.0-5.0 stars, or 3.5-5.0 when 4+ ratings are scarce), recommend NEW movies, never recommend films from the watchlist.
  */
-const Cinema_Engine_Prompt_2 = `You are CultCrate's Cinephile AI. Analyze the user's highly rated films (3.5-5.0 stars). Recommend NEW movies they have NOT seen. DO NOT recommend any film present in their watchlist.
+const Cinema_Engine_Prompt_2 = `You are CultCrate's Cinephile AI. Analyze the user's highly rated films (4.0-5.0 stars, or 3.5-5.0 when 4+ ratings are scarce). Recommend NEW movies they have NOT seen. DO NOT recommend any film present in their watchlist.
 
 [SYSTEM_ROLE]
 You are an elite, highly sophisticated cinematic data scientist and expert underground film recommendation engine for CultCrate. Your task is to ingest, analyze, and profile the user's personal Letterboxd viewing history provided in the CSV dataset. Based strictly on historical taste, data patterns, calibrated rating scale, and curatorial parameters, generate a hyper-targeted, curated list of movie recommendations that the user has NOT yet watched.
@@ -19,7 +32,7 @@ You are an elite, highly sophisticated cinematic data scientist and expert under
 - 3.5 Stars: A genuinely good film that stands out and indicates reliable genre/director resonance.
 - 4.0 Stars: An excellent, highly impressive film representing a clear positive taste signal.
 - 4.5 to 5.0 Stars: An absolute masterpiece of cinema representing the user's core aesthetic DNA.
-- Note: The input dataset has been strictly pre-filtered to ONLY contain films with ratings between 3.5 and 5.0 stars. Every film in the dataset represents a proven positive taste signal.
+- Note: The input dataset has been pre-filtered to the user's highest-rated films: normally ONLY 4.0 to 5.0 stars (3.5-star films appear only when the user has very few 4+ ratings). Every film in the dataset represents a proven positive taste signal.
 
 [ADVANCED_QUALITY_CONTROL_AND_ANTIBIAS]
 - Do NOT solely filter by high IMDb scores (e.g., 7.5+). Actively look for "Polarizing Cult Classics" and "Underrated Masterpieces" that may have a lower or average IMDb score (between 6.5 and 7.3) due to general audience confusion, micro-budgets, or highly complex, mind-bending narrative choices, but are universally praised by deep cinephiles.
@@ -27,9 +40,9 @@ You are an elite, highly sophisticated cinematic data scientist and expert under
 - Analyze the underlying Crew DNA in 4.0–5.0 star entries, identifying recurring Screenwriters, Cinematographers, and Editors to map subconscious technical preferences.
 
 [ANALYSIS_PROTOCOL]
-1. Data Ingestion: Ingest the provided high-taste watchlist (3.5 to 5.0 stars). Extract movie titles, release years, and user ratings.
+1. Data Ingestion: Ingest the provided high-taste watchlist (normally 4.0 to 5.0 stars). Extract movie titles, release years, and user ratings.
 2. Positive Signal Extraction: Isolate all entries rated 4.0 to 5.0 stars. Analyze these for dominant themes, pacing styles, eras, and technical crew signatures.
-3. Secondary Signal Extraction: Analyze the 3.5-star films to look for micro-trends or specific elements consistently appreciated.
+3. Secondary Signal Extraction: Analyze any 3.5-star films present (included only when 4+ ratings are scarce) to look for micro-trends or specific elements consistently appreciated.
 4. Filter Application: Layer the conditional filters based on parameters passed in the request (such as family_friendly_strict, country_filter, mood_genre_bias, era_preference, blacklisted_entities, and runtime_constraint).
 5. Strict Deduplication: Ensure absolutely zero movies already present in the user's CSV data are included in your recommendations. Recommend strictly NEW discoveries.
 
@@ -132,15 +145,16 @@ function parseRatingValue(val: string): number | null {
 export interface WatchlistAnalysisData {
   watchedTitlesSet: Set<string>;
   allWatchedTitles: string[];
-  filteredPayload: string;
-  filteredCount: number;
+  /** Every rated film at or above the candidate floor; selectTasteSignals() decides which ones the model reads. */
+  signals: TasteSignal[];
   totalParsedRows: number;
 }
 
 /**
  * 1. Extracts ALL movie titles from the CSV into a normalized `watchedTitlesSet` for deduplication.
- * 2. Filters rows so that ONLY movies with a rating between 3.5 and 5.0 (inclusive) are kept.
- * 3. Extracts essential columns: 'Name', 'Year', and 'Rating' to construct the taste profile payload for Gemini.
+ * 2. Collects every film rated 3.5 to 5.0 (inclusive) as a candidate taste signal.
+ * 3. Extracts the essential columns: 'Name', 'Year' and 'Rating'. The final cut (4 stars and up, capped) is made by
+ *    selectTasteSignals() after the live RSS entries are merged in.
  */
 function parseWatchlistAndBuildTasteProfile(rawCsv: string): WatchlistAnalysisData {
   const watchedTitlesSet = new Set<string>();
@@ -150,8 +164,7 @@ function parseWatchlistAndBuildTasteProfile(rawCsv: string): WatchlistAnalysisDa
     return {
       watchedTitlesSet,
       allWatchedTitles,
-      filteredPayload: '',
-      filteredCount: 0,
+      signals: [],
       totalParsedRows: 0,
     };
   }
@@ -187,8 +200,7 @@ function parseWatchlistAndBuildTasteProfile(rawCsv: string): WatchlistAnalysisDa
     return {
       watchedTitlesSet,
       allWatchedTitles,
-      filteredPayload: '',
-      filteredCount: 0,
+      signals: [],
       totalParsedRows: 0,
     };
   }
@@ -230,9 +242,8 @@ function parseWatchlistAndBuildTasteProfile(rawCsv: string): WatchlistAnalysisDa
   if (yearIdx === -1 && headerTokens.length > 2) yearIdx = 2;
   if (ratingIdx === -1 && headerTokens.length > 4) ratingIdx = 4;
 
-  const outputRows: string[] = ['Name,Year,Rating'];
+  const signals: TasteSignal[] = [];
   const dataLines = lines.slice(1);
-  let filteredCount = 0;
   let totalParsedRows = 0;
 
   for (const line of dataLines) {
@@ -252,30 +263,26 @@ function parseWatchlistAndBuildTasteProfile(rawCsv: string): WatchlistAnalysisDa
     const rawRating = ratingIdx !== -1 && cols[ratingIdx] ? cols[ratingIdx] : '';
     const numericRating = parseRatingValue(rawRating);
 
-    if (numericRating === null || numericRating < 3.5 || numericRating > 5.0) {
+    if (numericRating === null || numericRating < CANDIDATE_RATING_FLOOR || numericRating > 5.0) {
       continue;
     }
 
     const rawYear = yearIdx !== -1 && cols[yearIdx] ? cols[yearIdx].replace(/^"|"$/g, '').trim() : '';
     const cleanYear = rawYear.replace(/[^0-9]/g, '').slice(0, 4);
 
-    const cleanName = `"${rawName.replace(/"/g, '""')}"`;
-    const cleanRating = numericRating.toFixed(1);
-
-    outputRows.push(`${cleanName},${cleanYear},${cleanRating}`);
-    filteredCount++;
+    signals.push({ name: rawName, year: cleanYear, rating: numericRating });
   }
 
   return {
     watchedTitlesSet,
     allWatchedTitles,
-    filteredPayload: filteredCount > 0 ? outputRows.join('\n') : '',
-    filteredCount,
+    signals,
     totalParsedRows,
   };
 }
 
 export async function POST(req: NextRequest) {
+  const startedAt = Date.now();
   let obscurityLevel = 4;
   let username = 'cinephile';
 
@@ -403,62 +410,49 @@ export async function POST(req: NextRequest) {
     }
 
     // -------------------------------------------------------------
-    // 4. PARSE WATCHLIST & UNIFY WATCHED EXCLUSION LIST WITH RSS
+    // 4. PARSE WATCHLIST, UNIFY THE WATCHED LIST WITH RSS, THEN PICK THE TASTE SIGNALS
     // -------------------------------------------------------------
-    const {
-      watchedTitlesSet,
-      filteredPayload: initialFilteredPayload,
-      filteredCount: initialFilteredCount,
-      totalParsedRows,
-    } = parseWatchlistAndBuildTasteProfile(rawCsvContent);
+    const { watchedTitlesSet, signals: csvSignals, totalParsedRows } = parseWatchlistAndBuildTasteProfile(rawCsvContent);
+    const signals: TasteSignal[] = [...csvSignals];
 
-    // Merge RSS entries into watchedTitlesSet and taste profile payload
-    let mergedFilteredPayload = initialFilteredPayload;
-    let mergedFilteredCount = initialFilteredCount;
+    for (const rssItem of rssEntries) {
+      if (!rssItem.title) continue;
 
-    if (rssEntries.length > 0) {
-      const extraPayloadLines: string[] = [];
-      for (const rssItem of rssEntries) {
-        if (!rssItem.title) continue;
+      // Every film on the live feed is excluded from the recommendations, whatever its rating
+      watchedTitlesSet.add(rssItem.title.toLowerCase().trim());
+      const normTitle = normalizeTitle(rssItem.title);
+      if (normTitle) watchedTitlesSet.add(normTitle);
 
-        const lowerTitle = rssItem.title.toLowerCase().trim();
-        const normTitle = normalizeTitle(rssItem.title);
-
-        // Ensure 100% exclusion of RSS-fetched watched items
-        watchedTitlesSet.add(lowerTitle);
-        if (normTitle) watchedTitlesSet.add(normTitle);
-
-        // Merge high-taste rating signals (3.5★ - 5.0★) into Gemini prompt payload
-        const parsedRating = parseRatingValue(rssItem.rating || '4.0');
-        if (parsedRating !== null && parsedRating >= 3.5 && parsedRating <= 5.0) {
-          const cleanName = `"${rssItem.title.replace(/"/g, '""')}"`;
-          const line = `${cleanName},${rssItem.year || ''},${parsedRating.toFixed(1)}`;
-          if (!mergedFilteredPayload.includes(cleanName)) {
-            extraPayloadLines.push(line);
-            mergedFilteredCount++;
-          }
-        }
-      }
-
-      if (extraPayloadLines.length > 0) {
-        mergedFilteredPayload = mergedFilteredPayload
-          ? `${mergedFilteredPayload}\n${extraPayloadLines.join('\n')}`
-          : `Name,Year,Rating\n${extraPayloadLines.join('\n')}`;
+      const parsedRating = parseRatingValue(rssItem.rating || '4.0');
+      if (parsedRating !== null && parsedRating >= CANDIDATE_RATING_FLOOR && parsedRating <= 5.0) {
+        signals.push({
+          name: rssItem.title,
+          year: String(rssItem.year ?? '').replace(/[^0-9]/g, '').slice(0, 4),
+          rating: parsedRating,
+        });
       }
     }
 
-    if (!mergedFilteredPayload || mergedFilteredCount === 0) {
+    // Only the films the person loved (4 and 5 stars, capped) are sent to the model. The full watched list above
+    // is still used to keep already-seen films out of the results.
+    const selected = selectTasteSignals(signals);
+    const mergedFilteredPayload = selected.payload;
+    const mergedFilteredCount = selected.count;
+    const thresholdLabel = selected.threshold.toFixed(1);
+
+    if (mergedFilteredCount === 0) {
       return NextResponse.json(
         {
           error:
-            'No films with ratings between 3.5 and 5.0 stars found in your watchlist or RSS feed. CultCrate requires high-taste rating signals (3.5★ - 5.0★) to generate recommendations.',
+            'CultCrate needs a few films you rated 3.5 stars or higher to learn your taste. Rate some films on Letterboxd, sync, and try again.',
         },
         { status: 400 }
       );
     }
 
     console.log(
-      `[CultCrate AI] Unified Watchlist: Parsed ${totalParsedRows} CSV rows + ${rssEntries.length} RSS entries. Watched exclusion set size: ${watchedTitlesSet.size}. Filtered high-taste signals (3.5★ - 5.0★): ${mergedFilteredCount}.`
+      `[CultCrate AI] Parsed ${totalParsedRows} CSV rows + ${rssEntries.length} RSS entries. Watched exclusion set size: ${watchedTitlesSet.size}. ` +
+        `Sending ${mergedFilteredCount} of ${selected.totalCandidates} signals rated ${thresholdLabel}+ stars${selected.trimmed ? ' (capped)' : ''}.`
     );
 
     // -------------------------------------------------------------
@@ -479,7 +473,7 @@ export async function POST(req: NextRequest) {
       era_preference ? `Era Preference: ${era_preference}` : null,
       runtime_constraint ? `Runtime Constraint: ${runtime_constraint}` : null,
       blacklisted_entities && blacklisted_entities.length > 0
-        ? `Blacklisted Entities / Exclusions: ${blacklisted_entities.join(', ')}`
+        ? `Blacklisted Entities / Exclusions: ${blacklisted_entities.slice(0, MAX_BLACKLIST_TITLES_IN_PROMPT).join(', ')}`
         : null,
       preferences && preferences.length > 0
         ? `User Aesthetic Preferences: ${preferences.join(', ')}`
@@ -489,9 +483,9 @@ export async function POST(req: NextRequest) {
       .join('\n- ');
 
     const userPrompt = `[CORE INSTRUCTION]
-You are CultCrate's Cinephile AI. Analyze the user's highly rated films (3.5-5.0 stars). Recommend NEW movies they have NOT seen. DO NOT recommend any film present in their watchlist.
+You are CultCrate's Cinephile AI. Analyze the user's highly rated films (4.0-5.0 stars, or 3.5-5.0 when 4+ ratings are scarce). Recommend NEW movies they have NOT seen. DO NOT recommend any film present in their watchlist.
 
-USER HIGH-TASTE LETTERBOXD WATCHLIST & LIVE RSS FEED (STRICTLY CALIBRATED 3.5 - 5.0 STARS ONLY):
+USER HIGH-TASTE LETTERBOXD WATCHLIST & LIVE RSS FEED (HIGHEST-RATED FILMS ONLY, ${thresholdLabel} - 5.0 STARS):
 \`\`\`csv
 ${mergedFilteredPayload}
 \`\`\`
@@ -500,9 +494,11 @@ ACTIVE CURATION PARAMETERS:
 - ${curatorialInstructions}
 
 LETTERBOXD USERNAME: @${username}
-DATASET SIZE: ${mergedFilteredCount} calibrated positive signals (3.5★ to 5.0★) unified from CSV + RSS feed.
+DATASET SIZE: ${mergedFilteredCount} calibrated positive signals (${thresholdLabel}★ to 5.0★) unified from CSV + RSS feed.
 
-Analyze the user's positive signals (4.0 - 5.0 stars) and secondary signals (3.5 stars) from this filtered high-taste watchlist. Map underlying crew signatures (screenwriters, cinematographers, editors), enforce strict deduplication (zero recommended movies may be present in the user's watchlist), and return hyper-targeted Masterpiece and Excellent cohorts.`;
+Analyze the user's positive signals (${thresholdLabel} - 5.0 stars) from this filtered high-taste watchlist. Map underlying crew signatures (screenwriters, cinematographers, editors), enforce strict deduplication (zero recommended movies may be present in the user's watchlist), and return hyper-targeted Masterpiece and Excellent cohorts.
+
+OUTPUT LIMITS: return at most ${MAX_FILMS_PER_COHORT} films in masterpiece_cohort and at most ${MAX_FILMS_PER_COHORT} in excellent_cohort. Keep every text field to one or two short sentences.`;
 
     const filmSchema = {
       type: Type.OBJECT,
@@ -571,10 +567,27 @@ Analyze the user's positive signals (4.0 - 5.0 stars) and secondary signals (3.5
     let highDemandFallback = false;
 
     try {
-      const result = await generateContentWithFallback(ai, userApiKey, { contents: [userPrompt], config });
+      // Whatever is left of the function's time budget, minus room to finish and respond.
+      const deadlineMs = Math.max(0, FUNCTION_BUDGET_MS - RESPONSE_RESERVE_MS - (Date.now() - startedAt));
+      const result = await generateContentWithFallback(
+        ai,
+        userApiKey,
+        { contents: [userPrompt], config },
+        { deadlineMs, attemptTimeoutMs: GEMINI_ATTEMPT_TIMEOUT_MS }
+      );
       response = result.response;
       activeModelUsed = result.model;
     } catch (genErr: unknown) {
+      if (genErr instanceof GeminiFallbackError && genErr.timedOut) {
+        console.warn(`[CultCrate AI] Gemini timed out after ${Math.round((Date.now() - startedAt) / 1000)}s (tried: ${genErr.triedModels.join(', ')}).`);
+        return NextResponse.json(
+          {
+            error: 'The AI is taking longer than usual right now. Please try again in a minute.',
+            code: 'timeout',
+          },
+          { status: 504 }
+        );
+      }
       if (genErr instanceof GeminiFallbackError && genErr.allOverloaded) {
         highDemandFallback = true;
       } else {
@@ -753,6 +766,12 @@ Analyze the user's positive signals (4.0 - 5.0 stars) and secondary signals (3.5
       excellentCohort: enrichedExcellent,
       watchedDeduplicationCount: watchedTitlesSet.size,
       rssSyncedEntriesCount: rssEntries.length,
+      engineMeta: {
+        signalsSent: mergedFilteredCount,
+        signalThreshold: selected.threshold,
+        signalsTrimmed: selected.trimmed,
+        elapsedMs: Date.now() - startedAt,
+      },
     });
   } catch (err: unknown) {
     console.error('Unhandled failure in /api/recommendations:', err);

@@ -273,20 +273,58 @@ export class GeminiFallbackError extends Error {
   readonly triedModels: string[];
   /** true when at least one model failed because of overload (503), so callers can serve an offline cohort */
   readonly allOverloaded: boolean;
+  /** true when the time budget ran out (a model took too long), so callers can answer 504 instead of retrying blindly */
+  readonly timedOut: boolean;
 
-  constructor(message: string, lastError: unknown, triedModels: string[], allOverloaded: boolean) {
+  constructor(message: string, lastError: unknown, triedModels: string[], allOverloaded: boolean, timedOut = false) {
     super(message);
     this.name = 'GeminiFallbackError';
     this.lastError = lastError;
     this.triedModels = triedModels;
     this.allOverloaded = allOverloaded;
+    this.timedOut = timedOut;
   }
 }
+
+class GeminiAttemptTimeoutError extends Error {
+  constructor(ms: number) {
+    super(`Gemini did not answer within ${Math.round(ms / 1000)}s.`);
+    this.name = 'GeminiAttemptTimeoutError';
+  }
+}
+
+/** Rejects if `work` does not settle in time. The SDK call keeps running in the background, but we stop waiting for it. */
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new GeminiAttemptTimeoutError(ms)), ms);
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err: unknown) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
+/** Not worth starting another model call with less than this much of the budget left. */
+const MIN_USEFUL_ATTEMPT_MS = 8_000;
 
 export interface GeminiFallbackOptions {
   /** Attempts per model for 503 overloads (default 3) */
   overloadRetries?: number;
   retryDelayMs?: number;
+  /**
+   * Total time budget for ALL attempts together (e.g. what is left of a serverless function's limit).
+   * When it runs out the call stops and throws a GeminiFallbackError with `timedOut: true`.
+   * Unset means no limit (the previous behaviour).
+   */
+  deadlineMs?: number;
+  /** Longest a single model call may take. Defaults to whatever is left of `deadlineMs`. */
+  attemptTimeoutMs?: number;
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -313,17 +351,35 @@ export async function generateContentWithFallback(
   let sawOverload = false;
   let overloadedModels = 0;
   let rediscovered = false;
+  let timedOut = false;
 
-  for (let i = 0; i < chain.length && overloadedModels < MAX_OVERLOADED_MODELS; i++) {
+  const startedAt = Date.now();
+  const remainingMs = (): number =>
+    options.deadlineMs === undefined ? Number.POSITIVE_INFINITY : options.deadlineMs - (Date.now() - startedAt);
+
+  outer: for (let i = 0; i < chain.length && overloadedModels < MAX_OVERLOADED_MODELS; i++) {
     const model = chain[i];
-    triedModels.push(model);
 
     for (let attempt = 1; attempt <= retries; attempt++) {
+      if (remainingMs() < MIN_USEFUL_ATTEMPT_MS) {
+        timedOut = true;
+        break outer;
+      }
+      if (!triedModels.includes(model)) triedModels.push(model);
+
       try {
-        const response = await ai.models.generateContent({ ...request, model });
+        const call = ai.models.generateContent({ ...request, model });
+        const limit = Math.min(options.attemptTimeoutMs ?? Number.POSITIVE_INFINITY, remainingMs());
+        const response = Number.isFinite(limit) ? await withTimeout(call, limit) : await call;
         return { response, model, triedModels };
       } catch (err: unknown) {
         lastError = err;
+
+        if (err instanceof GeminiAttemptTimeoutError) {
+          console.warn(`[Gemini] '${model}' timed out: ${err.message}`);
+          timedOut = true;
+          break outer; // another model would not fit in what is left of the budget
+        }
 
         if (isOverloadedError(err)) {
           sawOverload = true;
@@ -357,6 +413,7 @@ export async function generateContentWithFallback(
     `No Gemini model produced a response (tried: ${triedModels.join(', ') || 'none'}). Last error: ${errorMessageOf(lastError).slice(0, 300)}`,
     lastError,
     triedModels,
-    sawOverload
+    sawOverload,
+    timedOut
   );
 }
