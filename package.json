@@ -1,5 +1,5 @@
 {
-  "name": "CultCrate",
+  "name": "ai-studio-applet",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "clean": "next clean",
-    "test": "npx tsx tests/lib.test.ts && npx tsx tests/storage.test.ts && npx tsx tests/gemini.test.ts && npx tsx tests/dashboardHelpers.test.ts && npx tsx tests/adminAnalytics.test.ts && npx tsx tests/adminRoles.test.ts && npx tsx tests/adminPlatform.test.ts"
+    "test": "npx tsx tests/lib.test.ts && npx tsx tests/storage.test.ts && npx tsx tests/gemini.test.ts && npx tsx tests/dashboardHelpers.test.ts && npx tsx tests/adminAnalytics.test.ts && npx tsx tests/adminRoles.test.ts && npx tsx tests/adminPlatform.test.ts && npx tsx tests/adminCreateUser.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

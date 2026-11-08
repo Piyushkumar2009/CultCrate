@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertTriangle, CheckCircle2, KeyRound, RefreshCw, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, KeyRound, RefreshCw, UserPlus, X } from 'lucide-react';
 import type { AdminRole, AdminSummary, AdminUserRow } from '@/lib/adminAnalytics';
 import { adminRequest } from '@/lib/adminClient';
 import { useAdminResource } from '@/hooks/useAdminResource';
@@ -15,6 +15,8 @@ import UserDetailDrawer from '@/components/admin/UserDetailDrawer';
 import LeaderboardSection from '@/components/admin/LeaderboardSection';
 import SyncMonitor from '@/components/admin/SyncMonitor';
 import AnnouncementManager from '@/components/admin/AnnouncementManager';
+import CreateUserModal from '@/components/admin/CreateUserModal';
+import type { CreateUserResult } from '@/lib/adminCreateUser';
 import { PANEL_CLASS } from '@/components/admin/adminUi';
 import { BTN_SOLID_RED } from '@/components/admin/adminUiKit';
 
@@ -57,6 +59,7 @@ export default function AdminPage() {
   const [toast, setToast] = useState<Toast | null>(null);
   const [mountedAt] = useState<number>(() => Date.now());
   const [selected, setSelected] = useState<{ id: string; handle: string } | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const hash = useSyncExternalStore(subscribeHash, readHash, readHashOnServer);
   const tab = parseTab(hash);
@@ -117,6 +120,14 @@ export default function AdminPage() {
     [summary, sync]
   );
 
+  const handleUserCreated = useCallback(
+    (user: CreateUserResult['user']): void => {
+      setToast({ tone: 'green', text: `${user.email} was created and can sign in now.` });
+      void summary.reload();
+    },
+    [summary]
+  );
+
   const refreshAll = (): void => {
     void summary.reload();
     void sync.reload();
@@ -156,17 +167,27 @@ export default function AdminPage() {
       {!setupNeeded && !loadFailed && (
         <>
           {tab === 'overview' && <OverviewSection summary={data} />}
-          {tab === 'curators' &&
-            (data ? (
-              <CuratorsTable users={data.users} currentUserId={data.currentUserId} nowMs={nowMs} onOpen={(u) => openUser(u.id, u.handle)} onChangeAccess={changeAccess} />
-            ) : (
-              <div className={`${PANEL_CLASS} h-[420px] animate-pulse`} />
-            ))}
+          {tab === 'curators' && (
+            <>
+              <div className="flex justify-end">
+                <button type="button" onClick={() => setCreateOpen(true)} className={BTN_SOLID_RED}>
+                  <UserPlus className="h-3.5 w-3.5" aria-hidden="true" /> Create user
+                </button>
+              </div>
+              {data ? (
+                <CuratorsTable users={data.users} currentUserId={data.currentUserId} nowMs={nowMs} onOpen={(u) => openUser(u.id, u.handle)} onChangeAccess={changeAccess} />
+              ) : (
+                <div className={`${PANEL_CLASS} h-[420px] animate-pulse`} />
+              )}
+            </>
+          )}
           {tab === 'leaderboard' && <LeaderboardSection onOpenUser={openUser} nowMs={nowMs} />}
           {tab === 'sync' && <SyncMonitor resource={sync} onOpenUser={openUser} nowMs={nowMs} />}
           {tab === 'announcements' && <AnnouncementManager nowMs={nowMs} />}
         </>
       )}
+
+      <CreateUserModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={handleUserCreated} />
 
       <UserDetailDrawer target={selected} users={data?.users ?? []} currentUserId={data?.currentUserId ?? ''} nowMs={nowMs} onClose={closeDrawer} onChangeAccess={changeAccess} onDeleteUser={deleteUser} />
 
