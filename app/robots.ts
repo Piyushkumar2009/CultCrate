@@ -1,16 +1,15 @@
 import type { MetadataRoute } from 'next';
-
-const BASE_URL = 'https://cultcrate.com';
+import { SITE_URL } from '@/lib/siteUrl';
 
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       {
         userAgent: '*',
-        allow: ['/', '/privacy', '/terms'],
+        allow: ['/', '/docs', '/auth', '/contact', '/privacy', '/terms'],
         disallow: ['/dashboard/', '/api/'],
       },
     ],
-    sitemap: `${BASE_URL}/sitemap.xml`,
+    sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }

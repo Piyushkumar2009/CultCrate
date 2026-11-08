@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import SiteAnnouncementBanner from '@/components/SiteAnnouncementBanner';
+import { SITE_URL } from '@/lib/siteUrl';
 
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://cultcrate.vercel.app';
 const SITE_NAME = 'CultCrate';
 const DEFAULT_TITLE = 'CultCrate — The Ultimate Cinematic Archive';
 const DESCRIPTION =
@@ -32,9 +32,6 @@ export const metadata: Metadata = {
   creator: 'CultCrate',
   publisher: 'CultCrate',
   category: 'entertainment',
-  verification: {
-    google: 'llcR0z1iGWL3hZYNLBFezFklRGEtYKoHVK5N_n002UU',
-  },
   formatDetection: {
     email: false,
     address: false,
