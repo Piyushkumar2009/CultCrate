@@ -307,6 +307,8 @@ export default function DashboardPage() {
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [liveExecutionStep, setLiveExecutionStep] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // Errors from the AI engine arrive already worded for people (see lib/engineErrors.ts), so they bypass friendlyMessage()
+  const [engineError, setEngineError] = useState<string | null>(null);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
 
   // ---- Derived handles (display only; sync uses the validated profile handle) --------
@@ -331,6 +333,7 @@ export default function DashboardPage() {
     setVaultReadFailed(false);
     setInitError(null);
     setErrorMessage(null);
+    setEngineError(null);
     setAiNotice(null);
     setLiveExecutionStep(null);
     setIsSynthesizing(false);
@@ -646,6 +649,7 @@ export default function DashboardPage() {
     const requestController = new AbortController();
     const requestTimer = setTimeout(() => requestController.abort(), ENGINE_REQUEST_TIMEOUT_MS);
     setErrorMessage(null);
+    setEngineError(null);
     setAiNotice(null);
 
     try {
@@ -819,7 +823,7 @@ export default function DashboardPage() {
       setLiveExecutionStep(null);
     } catch (err: unknown) {
       console.error('Synthesis error:', err);
-      setErrorMessage(friendlyEngineError(err));
+      setEngineError(friendlyEngineError(err));
       setLiveExecutionStep(null);
     } finally {
       clearTimeout(requestTimer);
@@ -1074,7 +1078,11 @@ export default function DashboardPage() {
   const lastRunLabel = lastRunTimestamp
     ? new Date(lastRunTimestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
     : '—';
-  const friendlyError = friendlyMessage(errorMessage);
+  const friendlyError = engineError ?? friendlyMessage(errorMessage);
+  const dismissError = (): void => {
+    setErrorMessage(null);
+    setEngineError(null);
+  };
 
   return (
     <div className="relative min-h-[100dvh] overflow-x-hidden bg-[#090D16] pb-24 font-sans text-[#F9FAFB] selection:bg-[#E50914] selection:text-white">
@@ -1327,7 +1335,7 @@ export default function DashboardPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setErrorMessage(null)}
+                    onClick={dismissError}
                     className="flex h-9 cursor-pointer items-center rounded-lg border border-white/[0.1] bg-black/40 px-3.5 text-xs text-red-200 transition-colors hover:text-white"
                   >
                     Dismiss
@@ -1336,7 +1344,7 @@ export default function DashboardPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setErrorMessage(null)}
+                onClick={dismissError}
                 className="shrink-0 cursor-pointer rounded-lg p-1.5 text-red-300 transition-colors hover:text-white"
                 aria-label="Dismiss message"
               >

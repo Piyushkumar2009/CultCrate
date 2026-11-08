@@ -17,7 +17,8 @@
  * Optional override without a redeploy: set GEMINI_MODEL (tried first if it is still valid).
  */
 import { createHash } from 'node:crypto';
-import type { GenerateContentParameters, GenerateContentResponse, GoogleGenAI } from '@google/genai';
+import { ThinkingLevel } from '@google/genai';
+import type { GenerateContentParameters, GenerateContentResponse, GoogleGenAI, ThinkingConfig } from '@google/genai';
 
 const MODELS_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 const DISCOVERY_TIMEOUT_MS = 8_000;
@@ -219,6 +220,39 @@ export async function getGeminiModelChain(apiKey?: string): Promise<string[]> {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Thinking control                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Gemini 2.5 / 3 models "think" before answering and those thinking tokens are billed against the output limit and
+ * add latency. For a structured pick-some-films task the extra reasoning is wasted time, and on a big history it is
+ * what pushes a call past the serverless time limit or truncates the JSON. So thinking is kept to the minimum each
+ * model family allows:
+ *  - gemini-3.x           -> thinkingLevel LOW (the lowest level every 3.x model accepts)
+ *  - gemini-2.5-pro       -> small budget (this model cannot switch thinking off)
+ *  - gemini-2.5-flash(-lite) -> thinkingBudget 0 (off)
+ *  - anything else (aliases such as gemini-flash-latest) -> no setting, the model default is used
+ */
+export function thinkingConfigFor(model: string): ThinkingConfig | undefined {
+  if (/^gemini-3(\.|-)/.test(model)) return { thinkingLevel: ThinkingLevel.LOW };
+  if (/^gemini-2\.5-pro/.test(model)) return { thinkingBudget: 256 };
+  if (/^gemini-2\.5-flash/.test(model)) return { thinkingBudget: 0 };
+  return undefined;
+}
+
+/** Gemini 3 advises leaving temperature at its default; a low value can make it loop and run long. */
+export function allowsCustomTemperature(model: string): boolean {
+  return !/^gemini-3(\.|-)/.test(model);
+}
+
+/** A 400 caused by the thinking setting itself (a model that does not accept it). Safe to retry without it. */
+export function isThinkingConfigError(err: unknown): boolean {
+  const message = errorMessageOf(err);
+  const status = errorStatusOf(err);
+  return (status === 400 || /INVALID_ARGUMENT|\b400\b/.test(message)) && /thinking/i.test(message);
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Error classification                                                      */
 /* -------------------------------------------------------------------------- */
 
@@ -313,6 +347,12 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
 /** Not worth starting another model call with less than this much of the budget left. */
 const MIN_USEFUL_ATTEMPT_MS = 8_000;
 
+/** Builds the request for one model. `compat` is true after that model rejected the thinking setting. */
+export type GeminiRequestFactory = (
+  model: string,
+  context: { compat: boolean }
+) => Omit<GenerateContentParameters, 'model'>;
+
 export interface GeminiFallbackOptions {
   /** Attempts per model for 503 overloads (default 3) */
   overloadRetries?: number;
@@ -339,7 +379,7 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 export async function generateContentWithFallback(
   ai: GoogleGenAI,
   apiKey: string,
-  request: Omit<GenerateContentParameters, 'model'>,
+  request: Omit<GenerateContentParameters, 'model'> | GeminiRequestFactory,
   options: GeminiFallbackOptions = {}
 ): Promise<{ response: GenerateContentResponse; model: string; triedModels: string[] }> {
   const retries = Math.max(1, options.overloadRetries ?? 3);
@@ -352,6 +392,7 @@ export async function generateContentWithFallback(
   let overloadedModels = 0;
   let rediscovered = false;
   let timedOut = false;
+  const compatModels = new Set<string>();
 
   const startedAt = Date.now();
   const remainingMs = (): number =>
@@ -367,8 +408,16 @@ export async function generateContentWithFallback(
       }
       if (!triedModels.includes(model)) triedModels.push(model);
 
+      let controller: AbortController | null = null;
       try {
-        const call = ai.models.generateContent({ ...request, model });
+        const base = typeof request === 'function' ? request(model, { compat: compatModels.has(model) }) : request;
+        // Cancel the HTTP call when we stop waiting, so an abandoned attempt does not keep spending free-tier quota.
+        controller = new AbortController();
+        const call = ai.models.generateContent({
+          ...base,
+          model,
+          config: { ...(base.config ?? {}), abortSignal: controller.signal },
+        });
         const limit = Math.min(options.attemptTimeoutMs ?? Number.POSITIVE_INFINITY, remainingMs());
         const response = Number.isFinite(limit) ? await withTimeout(call, limit) : await call;
         return { response, model, triedModels };
@@ -376,9 +425,18 @@ export async function generateContentWithFallback(
         lastError = err;
 
         if (err instanceof GeminiAttemptTimeoutError) {
+          controller?.abort();
           console.warn(`[Gemini] '${model}' timed out: ${err.message}`);
           timedOut = true;
           break outer; // another model would not fit in what is left of the budget
+        }
+
+        // The model refused the thinking setting: retry the same model once without it
+        if (isThinkingConfigError(err) && !compatModels.has(model)) {
+          console.warn(`[Gemini] '${model}' rejected the thinking setting, retrying without it.`);
+          compatModels.add(model);
+          attempt--;
+          continue;
         }
 
         if (isOverloadedError(err)) {

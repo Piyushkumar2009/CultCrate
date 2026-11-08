@@ -1,298 +1,104 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 import type { GenerateContentResponse } from '@google/genai';
-import { generateContentWithFallback, GeminiFallbackError } from '@/lib/geminiModels';
+import {
+  GeminiFallbackError,
+  allowsCustomTemperature,
+  generateContentWithFallback,
+  thinkingConfigFor,
+} from '@/lib/geminiModels';
 import { downloadRatingsCsv } from '@/lib/vaultStorage';
 import { createClient } from '@/utils/supabase/server';
-import { fetchLetterboxdRSSFeed, ParsedRSSEntry, pickLetterboxdHandle } from '@/lib/letterboxdRss';
-import { selectTasteSignals, type TasteSignal } from '@/lib/tasteSignals';
+import { fetchLetterboxdRssResult, pickLetterboxdHandle, type ParsedRSSEntry } from '@/lib/letterboxdRss';
+import { selectTasteSignals } from '@/lib/tasteSignals';
+import { buildEngineInput, isSeenTitle } from '@/lib/engineInput';
+import { EngineOutputError, parseEngineJson, readCohorts } from '@/lib/engineJson';
+import {
+  ENGINE_ERROR_MESSAGES,
+  ENGINE_ERROR_STATUS,
+  classifyGeminiFailure,
+  type EngineErrorCode,
+} from '@/lib/engineErrors';
+import {
+  ENGINE_RESPONSE_SCHEMA,
+  ENGINE_SYSTEM_PROMPT,
+  MAX_FILMS_PER_COHORT,
+  MAX_SEEN_TITLES_IN_PROMPT,
+  buildCuratorialInstructions,
+  buildUserPrompt,
+} from '@/lib/enginePrompt';
+import { formatFilm } from '@/lib/engineFormat';
+import { getOfflineCalibratedCohorts } from '@/lib/offlineCohorts';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 // ---------------------------------------------------------------------------
-// Time and size budget. The platform kills a function that runs past maxDuration, and the browser only sees a
-// dropped connection. So the Gemini step gets whatever is left of the budget and gives up cleanly before then.
+// Time budget. The platform kills a function that runs past maxDuration and the browser only sees a dropped
+// connection, so the Gemini step gets whatever is left of the budget and gives up cleanly before then.
+// 60s is the ceiling on Vercel's free (Hobby) plan without Fluid Compute; raise it only if your host allows more.
 // ---------------------------------------------------------------------------
-export const maxDuration = 60; // seconds. Raise to 300 if Fluid Compute is enabled for the project.
+export const maxDuration = 60;
 const FUNCTION_BUDGET_MS = maxDuration * 1000;
-const RESPONSE_RESERVE_MS = 8_000; // kept free for de-duplication and sending the response
-const GEMINI_ATTEMPT_TIMEOUT_MS = 45_000; // longest a single model call may take
-const MAX_FILMS_PER_COHORT = 12; // caps the AI's output, which is what takes the longest to generate
-const MAX_BLACKLIST_TITLES_IN_PROMPT = 120; // the full list is still removed from the results afterwards
-const CANDIDATE_RATING_FLOOR = 3.5; // lowest rating the selector may fall back to
+const RESPONSE_RESERVE_MS = 6_000; // kept free for de-duplication and sending the response
+const GEMINI_ATTEMPT_TIMEOUT_MS = 40_000; // longest a single model call may take
+const RSS_CAP_MS = 5_000; // the live feed is a bonus: it may never hold the engine up
+const OUTPUT_TOKEN_LIMIT = 12_000; // ~24 films is about 6-7k tokens; this bounds a runaway answer
+const MIN_MS_FOR_OUTPUT_RETRY = 22_000; // only retry an unreadable answer when a whole new call still fits
 
-/**
- * Strict System Instruction for Gemini
- * Mandate: Analyze highly rated films (4.0-5.0 stars, or 3.5-5.0 when 4+ ratings are scarce), recommend NEW movies, never recommend films from the watchlist.
- */
-const Cinema_Engine_Prompt_2 = `You are CultCrate's Cinephile AI. Analyze the user's highly rated films (4.0-5.0 stars, or 3.5-5.0 when 4+ ratings are scarce). Recommend NEW movies they have NOT seen. DO NOT recommend any film present in their watchlist.
-
-[SYSTEM_ROLE]
-You are an elite, highly sophisticated cinematic data scientist and expert underground film recommendation engine for CultCrate. Your task is to ingest, analyze, and profile the user's personal Letterboxd viewing history provided in the CSV dataset. Based strictly on historical taste, data patterns, calibrated rating scale, and curatorial parameters, generate a hyper-targeted, curated list of movie recommendations that the user has NOT yet watched.
-
-[CALIBRATED_RATING_SCALE]
-- 3.5 Stars: A genuinely good film that stands out and indicates reliable genre/director resonance.
-- 4.0 Stars: An excellent, highly impressive film representing a clear positive taste signal.
-- 4.5 to 5.0 Stars: An absolute masterpiece of cinema representing the user's core aesthetic DNA.
-- Note: The input dataset has been pre-filtered to the user's highest-rated films: normally ONLY 4.0 to 5.0 stars (3.5-star films appear only when the user has very few 4+ ratings). Every film in the dataset represents a proven positive taste signal.
-
-[ADVANCED_QUALITY_CONTROL_AND_ANTIBIAS]
-- Do NOT solely filter by high IMDb scores (e.g., 7.5+). Actively look for "Polarizing Cult Classics" and "Underrated Masterpieces" that may have a lower or average IMDb score (between 6.5 and 7.3) due to general audience confusion, micro-budgets, or highly complex, mind-bending narrative choices, but are universally praised by deep cinephiles.
-- Prioritize high-quality, high-concept cinema and cross-reference obscure gems rather than listing obvious global blockbusters.
-- Analyze the underlying Crew DNA in 4.0–5.0 star entries, identifying recurring Screenwriters, Cinematographers, and Editors to map subconscious technical preferences.
-
-[ANALYSIS_PROTOCOL]
-1. Data Ingestion: Ingest the provided high-taste watchlist (normally 4.0 to 5.0 stars). Extract movie titles, release years, and user ratings.
-2. Positive Signal Extraction: Isolate all entries rated 4.0 to 5.0 stars. Analyze these for dominant themes, pacing styles, eras, and technical crew signatures.
-3. Secondary Signal Extraction: Analyze any 3.5-star films present (included only when 4+ ratings are scarce) to look for micro-trends or specific elements consistently appreciated.
-4. Filter Application: Layer the conditional filters based on parameters passed in the request (such as family_friendly_strict, country_filter, mood_genre_bias, era_preference, blacklisted_entities, and runtime_constraint).
-5. Strict Deduplication: Ensure absolutely zero movies already present in the user's CSV data are included in your recommendations. Recommend strictly NEW discoveries.
-
-[STRICT_OUTPUT_JSON_SCHEMA]
-You must respond ONLY with a valid JSON object matching the following structure without any extra conversational markdown outside the JSON block:
-
-{
-  "taste_profile_summary": "string (A brief 2-sentence breakdown of what the data says about the cinematic DNA)",
-  "masterpiece_cohort": [
-    {
-      "title": "string",
-      "year": number,
-      "genre": "string[]",
-      "country": "string",
-      "runtime_mins": number,
-      "imdb_rating": number,
-      "content_advisory": "string",
-      "where_to_watch_india": "string",
-      "audio_availability": "string",
-      "spoiler_free_premise": "string (2-3 sentences)",
-      "thematic_alignment": "string",
-      "scale_projection": "Masterpiece",
-      "director": "string"
-    }
-  ],
-  "excellent_cohort": [
-    {
-      "title": "string",
-      "year": number,
-      "genre": "string[]",
-      "country": "string",
-      "runtime_mins": number,
-      "imdb_rating": number,
-      "content_advisory": "string",
-      "where_to_watch_india": "string",
-      "audio_availability": "string",
-      "spoiler_free_premise": "string (2-3 sentences)",
-      "thematic_alignment": "string",
-      "scale_projection": "Excellent",
-      "director": "string"
-    }
-  ]
-}`;
-
-
-// Helper: Check if an error indicates 503 / Service Unavailable / High Demand / Overloaded
-function isServiceUnavailableOrOverloaded(err: any): boolean {
-  if (!err) return false;
-  const msg = String(err?.message || err);
-  const status = err?.status || err?.statusCode || (err as any)?.response?.status;
-  return (
-    status === 503 ||
-    msg.includes('503') ||
-    msg.includes('UNAVAILABLE') ||
-    msg.includes('Service Unavailable') ||
-    msg.includes('The model is overloaded') ||
-    msg.includes('overloaded') ||
-    msg.includes('high demand')
+function fail(code: EngineErrorCode, detail?: string, extra?: Record<string, unknown>): NextResponse {
+  return NextResponse.json(
+    { error: ENGINE_ERROR_MESSAGES[code], code, ...(detail ? { detail } : {}), ...extra },
+    { status: ENGINE_ERROR_STATUS[code], headers: { 'Cache-Control': 'no-store' } }
   );
 }
 
-// Helper: Asynchronous delay
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * Normalizes title string for robust deduplication and comparison
- * Removes punctuation, quotes, articles, extra spaces and converts to lowercase.
- */
-function normalizeTitle(rawTitle: string): string {
-  if (!rawTitle) return '';
-  return rawTitle
-    .toLowerCase()
-    .replace(/^["'\s]+|["'\s]+$/g, '')
-    .replace(/[\u2018\u2019\u201C\u201D"']/g, '')
-    .replace(/^(the|a|an)\s+/i, '')
-    .replace(/[.,:;!?'"()\[\]{}_-]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+/** Resolves with the RSS entries, or [] if the feed fails or is slower than `ms`. Never throws. */
+async function fetchRssCapped(handle: string, ms: number): Promise<ParsedRSSEntry[]> {
+  if (!handle) return [];
+  try {
+    const result = await Promise.race([
+      fetchLetterboxdRssResult(handle),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+    ]);
+    if (!result) {
+      console.warn(`[CultCrate AI] RSS for @${handle} took longer than ${ms}ms, continuing without it.`);
+      return [];
+    }
+    if (!result.ok) {
+      console.warn(`[CultCrate AI] RSS for @${handle}: ${result.error}`);
+      return [];
+    }
+    return result.entries;
+  } catch (err: unknown) {
+    console.warn('[CultCrate AI] RSS fetch notice:', err);
+    return [];
+  }
 }
 
-/**
- * Parses rating from string (handles decimals, integers, and Letterboxd star notations)
- */
-function parseRatingValue(val: string): number | null {
-  if (!val) return null;
-  const clean = val.replace(/^"|"$/g, '').trim();
-  if (!clean) return null;
-
-  // Check Unicode star notation (e.g. ★★★★½ -> 4.5)
-  if (clean.includes('★') || clean.includes('½')) {
-    const full = (clean.match(/★/g) || []).length;
-    const half = (clean.match(/½/g) || []).length;
-    return full + half * 0.5;
-  }
-
-  const num = parseFloat(clean);
-  return isNaN(num) ? null : num;
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && v.trim() !== '') : [];
 }
 
-export interface WatchlistAnalysisData {
-  watchedTitlesSet: Set<string>;
-  allWatchedTitles: string[];
-  /** Every rated film at or above the candidate floor; selectTasteSignals() decides which ones the model reads. */
-  signals: TasteSignal[];
-  totalParsedRows: number;
-}
-
-/**
- * 1. Extracts ALL movie titles from the CSV into a normalized `watchedTitlesSet` for deduplication.
- * 2. Collects every film rated 3.5 to 5.0 (inclusive) as a candidate taste signal.
- * 3. Extracts the essential columns: 'Name', 'Year' and 'Rating'. The final cut (4 stars and up, capped) is made by
- *    selectTasteSignals() after the live RSS entries are merged in.
- */
-function parseWatchlistAndBuildTasteProfile(rawCsv: string): WatchlistAnalysisData {
-  const watchedTitlesSet = new Set<string>();
-  const allWatchedTitles: string[] = [];
-
-  if (!rawCsv || !rawCsv.trim()) {
-    return {
-      watchedTitlesSet,
-      allWatchedTitles,
-      signals: [],
-      totalParsedRows: 0,
-    };
-  }
-
-  // Tokenize lines preserving quotes and multi-line breaks
-  const lines: string[] = [];
-  let currentLine = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < rawCsv.length; i++) {
-    const char = rawCsv[i];
-    const nextChar = rawCsv[i + 1];
-
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        currentLine += '""';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-        currentLine += char;
-      }
-    } else if ((char === '\r' || char === '\n') && !inQuotes) {
-      if (char === '\r' && nextChar === '\n') i++;
-      if (currentLine.trim()) lines.push(currentLine.trim());
-      currentLine = '';
-    } else {
-      currentLine += char;
-    }
-  }
-  if (currentLine.trim()) lines.push(currentLine.trim());
-
-  if (lines.length < 2) {
-    return {
-      watchedTitlesSet,
-      allWatchedTitles,
-      signals: [],
-      totalParsedRows: 0,
-    };
-  }
-
-  const tokenizeLine = (line: string): string[] => {
-    const tokens: string[] = [];
-    let token = '';
-    let insideQuotes = false;
-    for (let j = 0; j < line.length; j++) {
-      const c = line[j];
-      const nc = line[j + 1];
-      if (c === '"') {
-        if (insideQuotes && nc === '"') {
-          token += '"';
-          j++;
-        } else {
-          insideQuotes = !insideQuotes;
-        }
-      } else if (c === ',' && !insideQuotes) {
-        tokens.push(token.trim());
-        token = '';
-      } else {
-        token += c;
-      }
-    }
-    tokens.push(token.trim());
-    return tokens;
-  };
-
-  const headerTokens = tokenizeLine(lines[0]);
-  const normHeaders = headerTokens.map((h) => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
-
-  let nameIdx = normHeaders.findIndex((h) => ['name', 'title', 'film', 'movietitle'].includes(h));
-  let yearIdx = normHeaders.findIndex((h) => ['year', 'releaseyear', 'date'].includes(h));
-  let ratingIdx = normHeaders.findIndex((h) => ['rating', 'yourrating', 'score'].includes(h));
-
-  // Fallbacks based on standard Letterboxd column ordering: Date, Name, Year, Letterboxd URI, Rating
-  if (nameIdx === -1 && headerTokens.length > 1) nameIdx = 1;
-  if (yearIdx === -1 && headerTokens.length > 2) yearIdx = 2;
-  if (ratingIdx === -1 && headerTokens.length > 4) ratingIdx = 4;
-
-  const signals: TasteSignal[] = [];
-  const dataLines = lines.slice(1);
-  let totalParsedRows = 0;
-
-  for (const line of dataLines) {
-    const cols = tokenizeLine(line);
-    const rawName = nameIdx !== -1 && cols[nameIdx] ? cols[nameIdx].replace(/^"|"$/g, '').trim() : '';
-    if (!rawName) continue;
-
-    totalParsedRows++;
-
-    const lowerRaw = rawName.toLowerCase().trim();
-    const normalized = normalizeTitle(rawName);
-
-    watchedTitlesSet.add(lowerRaw);
-    if (normalized) watchedTitlesSet.add(normalized);
-    allWatchedTitles.push(rawName);
-
-    const rawRating = ratingIdx !== -1 && cols[ratingIdx] ? cols[ratingIdx] : '';
-    const numericRating = parseRatingValue(rawRating);
-
-    if (numericRating === null || numericRating < CANDIDATE_RATING_FLOOR || numericRating > 5.0) {
-      continue;
-    }
-
-    const rawYear = yearIdx !== -1 && cols[yearIdx] ? cols[yearIdx].replace(/^"|"$/g, '').trim() : '';
-    const cleanYear = rawYear.replace(/[^0-9]/g, '').slice(0, 4);
-
-    signals.push({ name: rawName, year: cleanYear, rating: numericRating });
-  }
-
-  return {
-    watchedTitlesSet,
-    allWatchedTitles,
-    signals,
-    totalParsedRows,
-  };
+function asText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 export async function POST(req: NextRequest) {
   const startedAt = Date.now();
-  let obscurityLevel = 4;
-  let username = 'cinephile';
+  const timings: Record<string, number> = {};
+  const lap = (name: string, since: number): number => {
+    const now = Date.now();
+    timings[name] = now - since;
+    return now;
+  };
 
   try {
     // -------------------------------------------------------------
-    // 1. EXTRACT USER SESSION TOKEN & AUTHENTICATE VIA SUPABASE
+    // 1. AUTHENTICATE
     // -------------------------------------------------------------
     const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
     const bearerToken = authHeader?.replace(/^Bearer\s+/i, '').trim() || null;
-
     const supabase = await createClient(bearerToken);
 
     const {
@@ -300,642 +106,235 @@ export async function POST(req: NextRequest) {
       error: userAuthError,
     } = bearerToken ? await supabase.auth.getUser(bearerToken) : await supabase.auth.getUser();
 
-    if (userAuthError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized: Active user session required. Please sign in to CultCrate.' },
-        { status: 401 }
-      );
-    }
+    if (userAuthError || !user) return fail('unauthorized');
 
-    // Fetch user's saved Gemini API Key from Supabase 'profiles' table
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .maybeSingle();
+    if (profileError) console.warn('[CultCrate AI] profiles query notice:', profileError.message);
 
-    if (profileError) {
-      console.warn('Profiles table query notice:', profileError.message);
-    }
-
-    const userApiKey = profile?.gemini_api_key?.trim();
-
-    if (!userApiKey) {
-      return NextResponse.json(
-        { error: 'Gemini API key not configured. Please add your key in Settings.' },
-        { status: 400 }
-      );
-    }
+    const userApiKey = typeof profile?.gemini_api_key === 'string' ? profile.gemini_api_key.trim() : '';
+    if (!userApiKey) return fail('no_api_key');
 
     // -------------------------------------------------------------
-    // 2. FETCH RAW WATCHLIST CSV DIRECTLY FROM SUPABASE STORAGE
+    // 2. READ REQUEST
     // -------------------------------------------------------------
-    const body = await req.json().catch(() => ({}));
-    obscurityLevel = body.obscurityLevel ?? 4;
+    const body: Record<string, unknown> = await req.json().catch(() => ({}));
+    const obscurityLevel = Number.isFinite(Number(body.obscurityLevel)) ? Number(body.obscurityLevel) : 4;
     const letterboxdHandle = pickLetterboxdHandle(
       body.username,
       profile?.letterboxd_username,
       user.user_metadata?.letterboxd_username
     );
-    username = letterboxdHandle || 'cinephile';
+    const username = letterboxdHandle || 'cinephile';
 
-    const {
-      preferences = [],
-      family_friendly_strict = false,
-      country_filter = '',
-      mood_genre_bias = '',
-      era_preference = '',
-      blacklisted_entities = [],
-      runtime_constraint = '',
-    } = body;
+    // -------------------------------------------------------------
+    // 3. LOAD HISTORY: stored ratings.csv and the live RSS feed IN PARALLEL
+    // -------------------------------------------------------------
+    let t = Date.now();
+    const [csvResult, rssEntries] = await Promise.all([
+      downloadRatingsCsv(supabase, user.id),
+      fetchRssCapped(letterboxdHandle, RSS_CAP_MS),
+    ]);
+    t = lap('load', t);
 
-    let rawCsvContent = '';
+    let csvText = '';
+    if (csvResult.status === 'found') csvText = csvResult.text;
+    else if (csvResult.status === 'error') console.warn(`[CultCrate AI] ratings.csv download failed: ${csvResult.message}`);
 
-    // no-store + cacheNonce: never serve a stale ratings.csv
-    const csvResult = await downloadRatingsCsv(supabase, user.id);
-    if (csvResult.status === 'found') {
-      rawCsvContent = csvResult.text;
-    } else if (csvResult.status === 'error') {
-      console.warn(`[CultCrate AI] ratings.csv download failed: ${csvResult.message}`);
+    if (!csvText.trim()) {
+      // Fallbacks for accounts that have no stored file yet (RSS only covers recent films)
+      if (typeof body.rawCsv === 'string' && body.rawCsv.trim()) csvText = body.rawCsv;
     }
 
     // -------------------------------------------------------------
-    // 3. FETCH LIVE LETTERBOXD RSS FEED & MERGE WATCHED EXCLUSION LIST
+    // 4. BUILD THE ENGINE INPUT (one parser, shared with the sync route)
     // -------------------------------------------------------------
-    let rssEntries: ParsedRSSEntry[] = [];
-    if (letterboxdHandle) {
-      try {
-        rssEntries = await fetchLetterboxdRSSFeed(letterboxdHandle);
-        if (rssEntries.length > 0) {
-          console.log(`[CultCrate AI] Ingested ${rssEntries.length} live entries from Letterboxd RSS feed for @${username}`);
-        }
-      } catch (rssErr) {
-        console.warn(`[CultCrate AI] RSS feed fetch notice for @${username}:`, rssErr);
-      }
-    }
+    const input = buildEngineInput(csvText, rssEntries);
+    if (input.watchedCount === 0) return fail('no_ratings');
 
-    // Fallback: If no CSV in storage, construct CSV payload from RSS entries or request body
-    if (!rawCsvContent || !rawCsvContent.trim()) {
-      if (rssEntries.length > 0) {
-        const header = 'Date,Name,Year,Letterboxd URI,Rating';
-        const rows = rssEntries.map((item) => {
-          const titleEscaped = `"${(item.title || '').replace(/"/g, '""')}"`;
-          const year = item.year || '';
-          const url = item.letterboxdUrl || '';
-          const rating = item.rating || '';
-          return `${item.watchedDate},${titleEscaped},${year},${url},${rating}`;
-        });
-        rawCsvContent = [header, ...rows].join('\n');
-      } else if (body.rawCsv && typeof body.rawCsv === 'string' && body.rawCsv.trim()) {
-        rawCsvContent = body.rawCsv.trim();
-      } else if (Array.isArray(body.watchlist) && body.watchlist.length > 0) {
-        const header = 'Date,Name,Year,Letterboxd URI,Rating';
-        const rows = body.watchlist.map((m: any) => {
-          const title = `"${(m.title || m.name || '').replace(/"/g, '""')}"`;
-          const year = m.year || '';
-          const url = m.letterboxdUrl || '';
-          const rating = m.rating || '';
-          return `2024-01-01,${title},${year},${url},${rating}`;
-        });
-        rawCsvContent = [header, ...rows].join('\n');
-      } else {
-        return NextResponse.json(
-          {
-            error:
-              `No ratings.csv or Letterboxd RSS feed found for @${username}. Please upload your Letterboxd CSV in Settings or set your Letterboxd username.`,
-          },
-          { status: 400 }
-        );
-      }
-    }
+    const selected = selectTasteSignals(input.signals);
+    if (selected.count === 0) return fail('few_ratings');
 
-    // -------------------------------------------------------------
-    // 4. PARSE WATCHLIST, UNIFY THE WATCHED LIST WITH RSS, THEN PICK THE TASTE SIGNALS
-    // -------------------------------------------------------------
-    const { watchedTitlesSet, signals: csvSignals, totalParsedRows } = parseWatchlistAndBuildTasteProfile(rawCsvContent);
-    const signals: TasteSignal[] = [...csvSignals];
+    // Films the model cannot see in the CSV above are listed by name so it avoids them up front.
+    // (The server-side filter further down is still the hard guarantee.)
+    const signalTitles = new Set(selected.kept.map((s) => s.name.toLowerCase()));
+    const otherSeen = input.watchedTitles.filter((title) => !signalTitles.has(title.toLowerCase()));
+    const seenForPrompt = otherSeen.slice(-MAX_SEEN_TITLES_IN_PROMPT); // most recently watched are the likeliest repeats
 
-    for (const rssItem of rssEntries) {
-      if (!rssItem.title) continue;
-
-      // Every film on the live feed is excluded from the recommendations, whatever its rating
-      watchedTitlesSet.add(rssItem.title.toLowerCase().trim());
-      const normTitle = normalizeTitle(rssItem.title);
-      if (normTitle) watchedTitlesSet.add(normTitle);
-
-      const parsedRating = parseRatingValue(rssItem.rating || '4.0');
-      if (parsedRating !== null && parsedRating >= CANDIDATE_RATING_FLOOR && parsedRating <= 5.0) {
-        signals.push({
-          name: rssItem.title,
-          year: String(rssItem.year ?? '').replace(/[^0-9]/g, '').slice(0, 4),
-          rating: parsedRating,
-        });
-      }
-    }
-
-    // Only the films the person loved (4 and 5 stars, capped) are sent to the model. The full watched list above
-    // is still used to keep already-seen films out of the results.
-    const selected = selectTasteSignals(signals);
-    const mergedFilteredPayload = selected.payload;
-    const mergedFilteredCount = selected.count;
+    const blacklisted = asStringArray(body.blacklisted_entities);
     const thresholdLabel = selected.threshold.toFixed(1);
 
-    if (mergedFilteredCount === 0) {
-      return NextResponse.json(
-        {
-          error:
-            'CultCrate needs a few films you rated 3.5 stars or higher to learn your taste. Rate some films on Letterboxd, sync, and try again.',
-        },
-        { status: 400 }
-      );
-    }
-
     console.log(
-      `[CultCrate AI] Parsed ${totalParsedRows} CSV rows + ${rssEntries.length} RSS entries. Watched exclusion set size: ${watchedTitlesSet.size}. ` +
-        `Sending ${mergedFilteredCount} of ${selected.totalCandidates} signals rated ${thresholdLabel}+ stars${selected.trimmed ? ' (capped)' : ''}.`
+      `[CultCrate AI] @${username}: ${input.csvRows} CSV rows + ${input.rssRows} RSS entries = ${input.watchedCount} unique films. ` +
+        `Sending ${selected.count} of ${selected.totalCandidates} signals rated ${thresholdLabel}+ and ${seenForPrompt.length} seen titles.`
     );
 
+    const userPrompt = buildUserPrompt({
+      signalsCsv: selected.payload,
+      signalCount: selected.count,
+      thresholdLabel,
+      username,
+      curation: buildCuratorialInstructions({
+        obscurityLevel,
+        familyFriendlyStrict: body.family_friendly_strict === true,
+        countryFilter: asText(body.country_filter),
+        moodGenreBias: asText(body.mood_genre_bias),
+        eraPreference: asText(body.era_preference),
+        runtimeConstraint: asText(body.runtime_constraint),
+        blacklistedEntities: blacklisted,
+        preferences: asStringArray(body.preferences),
+      }),
+      seenTitles: seenForPrompt,
+      seenTotal: input.watchedCount,
+    });
+    t = lap('prepare', t);
+
     // -------------------------------------------------------------
-    // 5. INITIALIZE @google/genai DYNAMICALLY USING USER'S API KEY
+    // 5. CALL GEMINI (auto-discovered model chain, minimal thinking, hard output cap)
     // -------------------------------------------------------------
     const ai = new GoogleGenAI({ apiKey: userApiKey });
 
-    // -------------------------------------------------------------
-    // 6. CALL GEMINI WITH STRICT SYSTEM INSTRUCTION & ACTIVE MODELS
-    // -------------------------------------------------------------
-    const curatorialInstructions = [
-      `Obscurity Calibration: Level ${obscurityLevel} of 5`,
-      family_friendly_strict
-        ? 'Family-Friendly Filter: STRICT (Suppress extreme visceral/body horror/nudity)'
-        : 'Family-Friendly Filter: OFF (Unfiltered arthouse & cult canon permitted)',
-      country_filter ? `Country / Regional Bias: ${country_filter}` : null,
-      mood_genre_bias ? `Mood & Genre Bias: ${mood_genre_bias}` : null,
-      era_preference ? `Era Preference: ${era_preference}` : null,
-      runtime_constraint ? `Runtime Constraint: ${runtime_constraint}` : null,
-      blacklisted_entities && blacklisted_entities.length > 0
-        ? `Blacklisted Entities / Exclusions: ${blacklisted_entities.slice(0, MAX_BLACKLIST_TITLES_IN_PROMPT).join(', ')}`
-        : null,
-      preferences && preferences.length > 0
-        ? `User Aesthetic Preferences: ${preferences.join(', ')}`
-        : null,
-    ]
-      .filter(Boolean)
-      .join('\n- ');
-
-    const userPrompt = `[CORE INSTRUCTION]
-You are CultCrate's Cinephile AI. Analyze the user's highly rated films (4.0-5.0 stars, or 3.5-5.0 when 4+ ratings are scarce). Recommend NEW movies they have NOT seen. DO NOT recommend any film present in their watchlist.
-
-USER HIGH-TASTE LETTERBOXD WATCHLIST & LIVE RSS FEED (HIGHEST-RATED FILMS ONLY, ${thresholdLabel} - 5.0 STARS):
-\`\`\`csv
-${mergedFilteredPayload}
-\`\`\`
-
-ACTIVE CURATION PARAMETERS:
-- ${curatorialInstructions}
-
-LETTERBOXD USERNAME: @${username}
-DATASET SIZE: ${mergedFilteredCount} calibrated positive signals (${thresholdLabel}★ to 5.0★) unified from CSV + RSS feed.
-
-Analyze the user's positive signals (${thresholdLabel} - 5.0 stars) from this filtered high-taste watchlist. Map underlying crew signatures (screenwriters, cinematographers, editors), enforce strict deduplication (zero recommended movies may be present in the user's watchlist), and return hyper-targeted Masterpiece and Excellent cohorts.
-
-OUTPUT LIMITS: return at most ${MAX_FILMS_PER_COHORT} films in masterpiece_cohort and at most ${MAX_FILMS_PER_COHORT} in excellent_cohort. Keep every text field to one or two short sentences.`;
-
-    const filmSchema = {
-      type: Type.OBJECT,
-      properties: {
-        title: { type: Type.STRING },
-        year: { type: Type.INTEGER },
-        genre: {
-          type: Type.ARRAY,
-          items: { type: Type.STRING },
-        },
-        country: { type: Type.STRING },
-        runtime_mins: { type: Type.INTEGER },
-        imdb_rating: { type: Type.NUMBER },
-        content_advisory: { type: Type.STRING },
-        where_to_watch_india: { type: Type.STRING },
-        audio_availability: { type: Type.STRING },
-        spoiler_free_premise: { type: Type.STRING },
-        thematic_alignment: { type: Type.STRING },
-        scale_projection: { type: Type.STRING },
-        director: { type: Type.STRING },
+    const requestFor = (model: string, { compat }: { compat: boolean }) => ({
+      contents: [userPrompt],
+      config: {
+        systemInstruction: ENGINE_SYSTEM_PROMPT,
+        responseMimeType: 'application/json',
+        responseSchema: ENGINE_RESPONSE_SCHEMA,
+        maxOutputTokens: OUTPUT_TOKEN_LIMIT,
+        ...(allowsCustomTemperature(model) ? { temperature: 0.35 } : {}),
+        ...(compat ? {} : { thinkingConfig: thinkingConfigFor(model) }),
       },
-      required: [
-        'title',
-        'year',
-        'genre',
-        'country',
-        'runtime_mins',
-        'imdb_rating',
-        'content_advisory',
-        'where_to_watch_india',
-        'audio_availability',
-        'spoiler_free_premise',
-        'thematic_alignment',
-        'scale_projection',
-      ],
-    };
+    });
 
-    const config = {
-      systemInstruction: Cinema_Engine_Prompt_2,
-      responseMimeType: 'application/json',
-      temperature: 0.35,
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          taste_profile_summary: {
-            type: Type.STRING,
-            description:
-              'A brief 2-sentence breakdown of what the data says about the cinematic DNA',
-          },
-          masterpiece_cohort: {
-            type: Type.ARRAY,
-            items: filmSchema,
-          },
-          excellent_cohort: {
-            type: Type.ARRAY,
-            items: filmSchema,
-          },
-        },
-        required: ['taste_profile_summary', 'masterpiece_cohort', 'excellent_cohort'],
-      },
-    };
-
-    // Models are auto-discovered per API key (lib/geminiModels.ts); nothing is hardcoded here.
-    let response: GenerateContentResponse | null = null;
-    let activeModelUsed = '';
-    let highDemandFallback = false;
-
-    try {
-      // Whatever is left of the function's time budget, minus room to finish and respond.
+    const callGemini = async (): Promise<{ response: GenerateContentResponse; model: string }> => {
       const deadlineMs = Math.max(0, FUNCTION_BUDGET_MS - RESPONSE_RESERVE_MS - (Date.now() - startedAt));
-      const result = await generateContentWithFallback(
-        ai,
-        userApiKey,
-        { contents: [userPrompt], config },
-        { deadlineMs, attemptTimeoutMs: GEMINI_ATTEMPT_TIMEOUT_MS }
-      );
-      response = result.response;
-      activeModelUsed = result.model;
-    } catch (genErr: unknown) {
-      if (genErr instanceof GeminiFallbackError && genErr.timedOut) {
-        console.warn(`[CultCrate AI] Gemini timed out after ${Math.round((Date.now() - startedAt) / 1000)}s (tried: ${genErr.triedModels.join(', ')}).`);
-        return NextResponse.json(
-          {
-            error: 'The AI is taking longer than usual right now. Please try again in a minute.',
-            code: 'timeout',
-          },
-          { status: 504 }
-        );
+      return generateContentWithFallback(ai, userApiKey, requestFor, {
+        deadlineMs,
+        attemptTimeoutMs: GEMINI_ATTEMPT_TIMEOUT_MS,
+      });
+    };
+
+    let activeModel = '';
+    let highDemandFallback = false;
+    let parsed: ReturnType<typeof readCohorts> | null = null;
+    let repairedOutput = false;
+    let finishReason = '';
+
+    for (let attempt = 1; attempt <= 2 && !parsed && !highDemandFallback; attempt++) {
+      let result: { response: GenerateContentResponse; model: string };
+      try {
+        result = await callGemini();
+      } catch (genErr: unknown) {
+        if (genErr instanceof GeminiFallbackError) {
+          if (genErr.timedOut) {
+            console.warn(`[CultCrate AI] Gemini timed out after ${Math.round((Date.now() - startedAt) / 1000)}s (tried: ${genErr.triedModels.join(', ')}).`);
+            return fail('timeout', undefined, { timings });
+          }
+          if (genErr.allOverloaded) {
+            highDemandFallback = true;
+            break;
+          }
+          console.error('[CultCrate AI] every Gemini model failed:', genErr.message);
+          return fail(classifyGeminiFailure(genErr.lastError ?? genErr), genErr.message.slice(0, 300));
+        }
+        console.error('[CultCrate AI] Gemini request failed:', genErr);
+        return fail(classifyGeminiFailure(genErr), genErr instanceof Error ? genErr.message.slice(0, 300) : undefined);
       }
-      if (genErr instanceof GeminiFallbackError && genErr.allOverloaded) {
-        highDemandFallback = true;
-      } else {
-        throw genErr;
+
+      activeModel = result.model;
+      finishReason = String(result.response.candidates?.[0]?.finishReason ?? '');
+      try {
+        const out = parseEngineJson(result.response.text ?? '');
+        const cohorts = readCohorts(out.data);
+        if (cohorts.masterpiece.length + cohorts.excellent.length === 0) {
+          throw new EngineOutputError('The AI answered without any films.');
+        }
+        parsed = cohorts;
+        repairedOutput = out.repaired;
+        if (out.repaired) console.warn(`[CultCrate AI] Answer was cut off (${finishReason}); kept the complete films.`);
+      } catch (parseErr: unknown) {
+        const left = FUNCTION_BUDGET_MS - RESPONSE_RESERVE_MS - (Date.now() - startedAt);
+        console.warn(
+          `[CultCrate AI] Unreadable answer from '${activeModel}' (finishReason=${finishReason || 'n/a'}, attempt ${attempt}): ${
+            parseErr instanceof Error ? parseErr.message : parseErr
+          }`
+        );
+        if (attempt === 2 || left < MIN_MS_FOR_OUTPUT_RETRY) {
+          return fail('bad_ai_output', `finishReason=${finishReason || 'n/a'}`, { model: activeModel });
+        }
       }
     }
+    t = lap('gemini', t);
 
-    const formatFilm = (f: any, idx: number, isMasterpiece: boolean) => {
-      const streamingList =
-        typeof f.where_to_watch_india === 'string'
-          ? f.where_to_watch_india.split(',').map((s: string) => s.trim())
-          : Array.isArray(f.where_to_watch_india)
-          ? f.where_to_watch_india
-          : ['MUBI India', 'Prime Video India', 'Apple TV (Rent/Buy)'];
-
-      const posterUrl = '';
-
-      return {
-        id: `film-${isMasterpiece ? 'masterpiece' : 'excellent'}-${idx}-${(f.title || 'film')
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')}`,
-        title: f.title,
-        originalTitle: f.originalTitle || f.title,
-        year: f.year,
-        genre: f.genre || ['Drama', 'Thriller'],
-        country: f.country || 'International',
-        countryFlag: f.country?.toLowerCase().includes('korea')
-          ? '🇰🇷'
-          : f.country?.toLowerCase().includes('japan')
-          ? '🇯🇵'
-          : f.country?.toLowerCase().includes('france')
-          ? '🇫🇷'
-          : f.country?.toLowerCase().includes('germany')
-          ? '🇩🇪'
-          : f.country?.toLowerCase().includes('poland')
-          ? '🇵🇱'
-          : f.country?.toLowerCase().includes('india')
-          ? '🇮🇳'
-          : '🌐',
-        runtime_mins: f.runtime_mins || 120,
-        runtime: `${f.runtime_mins || 120} min`,
-        imdb_rating: f.imdb_rating || 7.8,
-        imdbRating: `${f.imdb_rating || 7.8}`,
-        letterboxdRating: `${Math.min(5.0, Number(f.imdb_rating || 7.8) / 2 + 0.3).toFixed(1)}`,
-        matchScore: `${isMasterpiece ? (99.4 - idx * 0.5).toFixed(1) : (97.2 - idx * 0.7).toFixed(1)}%`,
-        obscurityBadge: isMasterpiece
-          ? `Tier ${obscurityLevel} // Masterpiece Cohort`
-          : `Tier ${obscurityLevel} // Excellent Gem`,
-        content_advisory: f.content_advisory,
-        contentAdvisory: f.content_advisory,
-        advisory: f.content_advisory,
-        where_to_watch_india: f.where_to_watch_india,
-        whereToWatchInIndia: streamingList,
-        streamingPlatforms: streamingList,
-        audio_availability: f.audio_availability || 'Original Master • English Subtitles',
-        spoiler_free_premise: f.spoiler_free_premise,
-        synopsis: f.spoiler_free_premise,
-        thematic_alignment: f.thematic_alignment,
-        curatorialReason: f.thematic_alignment,
-        scale_projection: isMasterpiece ? 'Masterpiece' : 'Excellent',
-        posterUrl,
-        director: f.director || (isMasterpiece ? 'Visionary Auteur' : 'Underground Auteur'),
-        letterboxdUrl: `https://letterboxd.com/film/${encodeURIComponent(
-          (f.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')
-        )}/`,
-        trailerUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(
-          (f.title || '') + ' official trailer'
-        )}`,
-      };
-    };
-
-    const isAlreadyInWatchedList = (movieTitle: string): boolean => {
-      if (!movieTitle) return false;
-      const lowerRaw = movieTitle.toLowerCase().trim();
-      const normalized = normalizeTitle(movieTitle);
-
-      if (watchedTitlesSet.has(lowerRaw)) return true;
-      if (normalized && watchedTitlesSet.has(normalized)) return true;
-      return false;
-    };
+    // -------------------------------------------------------------
+    // 6. DROP ALREADY SEEN FILMS (hard guarantee) AND FORMAT
+    // -------------------------------------------------------------
+    const unseen = <T extends Record<string, unknown>>(films: T[]): T[] =>
+      films.filter((film) => !isSeenTitle(String(film.title ?? ''), input.watchedKeys));
 
     if (highDemandFallback) {
       console.warn('[CultCrate AI] Returning offline calibrated vault cohorts due to high demand.');
-      const offlinePayload = getOfflineCalibratedCohorts(obscurityLevel);
-
-      const filteredOfflineMasterpiece = offlinePayload.masterpiece_cohort.filter(
-        (film: any) => !isAlreadyInWatchedList(film.title)
-      );
-      const filteredOfflineExcellent = offlinePayload.excellent_cohort.filter(
-        (film: any) => !isAlreadyInWatchedList(film.title)
-      );
-
-      const enrichedMasterpiece = filteredOfflineMasterpiece.map((film: any, i: number) => {
-        return formatFilm({ ...film, posterUrl: '' }, i, true);
-      });
-      const enrichedExcellent = filteredOfflineExcellent.map((film: any, i: number) => {
-        return formatFilm({ ...film, posterUrl: '' }, i, false);
-      });
-
+      const offline = getOfflineCalibratedCohorts();
+      const masterpiece = unseen(offline.masterpiece_cohort).map((f, i) => formatFilm(f, i, true, obscurityLevel));
+      const excellent = unseen(offline.excellent_cohort).map((f, i) => formatFilm(f, i, false, obscurityLevel));
       return NextResponse.json({
         status: 'success',
         source: 'offline_calibrated_vault',
         model: 'offline_vault_archive',
-        taste_profile_summary: offlinePayload.taste_profile_summary,
-        tasteProfileSummary: offlinePayload.taste_profile_summary,
-        masterpiece_cohort: enrichedMasterpiece,
-        masterpieceCohort: enrichedMasterpiece,
-        excellent_cohort: enrichedExcellent,
-        excellentCohort: enrichedExcellent,
+        taste_profile_summary: offline.taste_profile_summary,
+        tasteProfileSummary: offline.taste_profile_summary,
+        masterpiece_cohort: masterpiece,
+        masterpieceCohort: masterpiece,
+        excellent_cohort: excellent,
+        excellentCohort: excellent,
+        watchedDeduplicationCount: input.watchedCount,
+        rssSyncedEntriesCount: rssEntries.length,
       });
     }
 
-    const rawJsonText = response?.text ?? '';
-    if (!rawJsonText.trim()) {
-      throw new Error('Gemini AI returned an empty response.');
-    }
-    let parsedResult: any = {};
+    if (!parsed) return fail('bad_ai_output');
 
-    try {
-      const cleanJson = rawJsonText
-        .replace(/^```json\s*/i, '')
-        .replace(/^```\s*/i, '')
-        .replace(/\s*```$/i, '')
-        .trim();
-      parsedResult = JSON.parse(cleanJson);
-    } catch (jsonErr) {
-      console.error('[CultCrate AI] JSON Parse error on Gemini output:', jsonErr);
-      throw new Error('Gemini AI returned invalid non-JSON output format.');
-    }
-
-    const rawMasterpieceCohort = Array.isArray(parsedResult.masterpiece_cohort)
-      ? parsedResult.masterpiece_cohort
-      : Array.isArray(parsedResult.masterpieceCohort)
-      ? parsedResult.masterpieceCohort
-      : [];
-
-    const rawExcellentCohort = Array.isArray(parsedResult.excellent_cohort)
-      ? parsedResult.excellent_cohort
-      : Array.isArray(parsedResult.excellentCohort)
-      ? parsedResult.excellentCohort
-      : [];
-
-    const deduplicatedMasterpiece = rawMasterpieceCohort.filter((film: any) => {
-      const alreadyWatched = isAlreadyInWatchedList(film.title);
-      if (alreadyWatched) {
-        console.log(`[CultCrate AI] Deduplication: filtered out already watched film "${film.title}"`);
-      }
-      return !alreadyWatched;
-    });
-
-    const deduplicatedExcellent = rawExcellentCohort.filter((film: any) => {
-      const alreadyWatched = isAlreadyInWatchedList(film.title);
-      if (alreadyWatched) {
-        console.log(`[CultCrate AI] Deduplication: filtered out already watched film "${film.title}"`);
-      }
-      return !alreadyWatched;
-    });
-
-    const [enrichedMasterpiece, enrichedExcellent] = [
-      deduplicatedMasterpiece.map((film: any, i: number) => {
-        return formatFilm({ ...film, posterUrl: '' }, i, true);
-      }),
-      deduplicatedExcellent.map((film: any, i: number) => {
-        return formatFilm({ ...film, posterUrl: '' }, i, false);
-      }),
-    ];
+    const rawCount = parsed.masterpiece.length + parsed.excellent.length;
+    const masterpiece = unseen(parsed.masterpiece)
+      .slice(0, MAX_FILMS_PER_COHORT)
+      .map((f, i) => formatFilm(f, i, true, obscurityLevel));
+    const excellent = unseen(parsed.excellent)
+      .slice(0, MAX_FILMS_PER_COHORT)
+      .map((f, i) => formatFilm(f, i, false, obscurityLevel));
+    const removed = rawCount - masterpiece.length - excellent.length;
+    if (removed > 0) console.log(`[CultCrate AI] Deduplication removed ${removed} already watched film(s).`);
+    lap('finish', t);
+    timings.total = Date.now() - startedAt;
+    console.log(`[CultCrate AI] done in ${timings.total}ms ${JSON.stringify(timings)} model=${activeModel}`);
 
     return NextResponse.json({
       status: 'success',
-      model: activeModelUsed,
-      taste_profile_summary: parsedResult.taste_profile_summary || parsedResult.tasteProfileSummary,
-      tasteProfileSummary: parsedResult.taste_profile_summary || parsedResult.tasteProfileSummary,
-      masterpiece_cohort: enrichedMasterpiece,
-      masterpieceCohort: enrichedMasterpiece,
-      excellent_cohort: enrichedExcellent,
-      excellentCohort: enrichedExcellent,
-      watchedDeduplicationCount: watchedTitlesSet.size,
+      model: activeModel,
+      taste_profile_summary: parsed.summary,
+      tasteProfileSummary: parsed.summary,
+      masterpiece_cohort: masterpiece,
+      masterpieceCohort: masterpiece,
+      excellent_cohort: excellent,
+      excellentCohort: excellent,
+      // One number per FILM. (This used to be the size of a key set holding 2+ keys per film, so it read ~1.7x too high.)
+      watchedDeduplicationCount: input.watchedCount,
       rssSyncedEntriesCount: rssEntries.length,
       engineMeta: {
-        signalsSent: mergedFilteredCount,
+        signalsSent: selected.count,
         signalThreshold: selected.threshold,
         signalsTrimmed: selected.trimmed,
-        elapsedMs: Date.now() - startedAt,
+        seenTitlesSent: seenForPrompt.length,
+        outputRepaired: repairedOutput,
+        removedAsSeen: removed,
+        timings,
+        elapsedMs: timings.total,
       },
     });
   } catch (err: unknown) {
     console.error('Unhandled failure in /api/recommendations:', err);
-    const msg = err instanceof Error ? err.message : 'Internal Server Error';
-    return NextResponse.json(
-      {
-        error: `CultCrate AI Engine Error: ${msg}`,
-      },
-      { status: 500 }
-    );
+    return fail('internal', err instanceof Error ? err.message.slice(0, 300) : undefined);
   }
-}
-
-function getOfflineCalibratedCohorts(level: number) {
-  return {
-    taste_profile_summary:
-      'High affinity for clinical psychological dread, rain-soaked neo-noir lighting, and uncompromising auteur cinematography. Calibrated directly from the offline Vault screening archives.',
-    masterpiece_cohort: [
-      {
-        title: 'Memories of Murder',
-        year: 2003,
-        genre: ['Crime', 'Drama', 'Mystery'],
-        country: 'South Korea',
-        runtime_mins: 131,
-        imdb_rating: 8.1,
-        posterUrl: '',
-        content_advisory: 'Disturbing Serial Homicide Themes & Rain-Soaked Atmosphere',
-        where_to_watch_india: 'Prime Video India, MUBI India, Apple TV Store',
-        audio_availability: 'Korean Original Master • English Subtitles',
-        spoiler_free_premise:
-          'In a rural province in 1986, two ill-equipped detectives struggle with brutality, missing forensic evidence, and psychological exhaustion while pursuing South Korea\'s first serial murderer.',
-        thematic_alignment:
-          'Unmatched chiaroscuro night cinematography, moral decay, and razor-sharp procedural tension matching your top-rated Korean neo-noirs.',
-        scale_projection: 'Masterpiece',
-        director: 'Bong Joon-ho',
-      },
-      {
-        title: 'Cure',
-        year: 1997,
-        genre: ['Crime', 'Horror', 'Mystery'],
-        country: 'Japan',
-        runtime_mins: 111,
-        imdb_rating: 7.5,
-        posterUrl: '',
-        content_advisory: 'Hypnotic Psychological Horror & Existential Nihilism',
-        where_to_watch_india: 'MUBI India, Criterion Channel (VPN), Apple TV Store',
-        audio_availability: 'Japanese Master • English Subtitles',
-        spoiler_free_premise:
-          'A burnt-out Tokyo detective investigates identical gruesome murders committed by ordinary people who have no memory of their actions after encountering an amnesiac wanderer.',
-        thematic_alignment:
-          'Clinical spatial staging, industrial sound design, and hypnotic psychological tension tailored to deep cinephile appreciation.',
-        scale_projection: 'Masterpiece',
-        director: 'Kiyoshi Kurosawa',
-      },
-      {
-        title: 'Burning',
-        year: 2018,
-        genre: ['Drama', 'Mystery', 'Thriller'],
-        country: 'South Korea',
-        runtime_mins: 148,
-        imdb_rating: 7.5,
-        posterUrl: '',
-        content_advisory: 'Slow-Burn Existential Enigma & Class Tension',
-        where_to_watch_india: 'Netflix India, Prime Video India, MUBI India',
-        audio_availability: 'Korean 5.1 Surround • English Subtitles',
-        spoiler_free_premise:
-          'An aspiring novelist encounters a childhood acquaintance and a wealthy, mysterious playboy whose strange secret hobby ignites an obsessive investigation.',
-        thematic_alignment:
-          'A quiet masterclass in atmospheric pacing, natural twilight lighting, and subtle class friction adapted from Haruki Murakami.',
-        scale_projection: 'Masterpiece',
-        director: 'Lee Chang-dong',
-      },
-      {
-        title: 'Stalker',
-        year: 1979,
-        genre: ['Sci-Fi', 'Drama', 'Mystery'],
-        country: 'Soviet Union',
-        runtime_mins: 162,
-        imdb_rating: 8.1,
-        posterUrl: '',
-        content_advisory: 'Metaphysical Philosophical Dread & Toxic Industrial Hazards',
-        where_to_watch_india: 'Criterion Channel, YouTube Cinema Arthouse, MUBI India',
-        audio_availability: 'Russian Mono Master • English Subtitles',
-        spoiler_free_premise:
-          'A guide leads a melancholic writer and a cynical professor through a hazardous, sentient post-apocalyptic wasteland known as The Zone to locate a room that grants deep desires.',
-        thematic_alignment:
-          'Legendary long takes, sepia tones transitioning into vibrant overgrown landscapes, and transcendental spiritual metaphysics.',
-        scale_projection: 'Masterpiece',
-        director: 'Andrei Tarkovsky',
-      },
-    ],
-    excellent_cohort: [
-      {
-        title: 'Possession',
-        year: 1981,
-        genre: ['Horror', 'Drama'],
-        country: 'France / West Germany',
-        runtime_mins: 124,
-        imdb_rating: 7.3,
-        posterUrl: '',
-        content_advisory: 'Severe Psychological Hysteria & Surrealist Body Horror',
-        where_to_watch_india: 'MUBI India, Metrograph at Home, Apple TV (Rent)',
-        audio_availability: 'Original English Master',
-        spoiler_free_premise:
-          'Against the backdrop of the Berlin Wall, a spy returns home to his unraveling marriage only to discover his wife has formed an unspeakable metaphysical liaison.',
-        thematic_alignment:
-          'Extreme unhinged acting performances, visceral bodily terror, and profound Cold War socio-political allegories.',
-        scale_projection: 'Excellent',
-        director: 'Andrzej Żuławski',
-      },
-      {
-        title: 'On the Silver Globe',
-        year: 1988,
-        genre: ['Sci-Fi', 'Drama', 'Fantasy'],
-        country: 'Poland',
-        runtime_mins: 166,
-        imdb_rating: 7.2,
-        posterUrl: '',
-        content_advisory: 'Hallucinatory Sci-Fi Metaphysics & Pagan Savagery',
-        where_to_watch_india: 'Eastern Promises India, MUBI India, Archival 4K',
-        audio_availability: 'Polish Master • English Subtitles',
-        spoiler_free_premise:
-          'Astronauts crash-land on an alien planet and establish a primal society that gradually devolves into religious mythology and pagan tribal warfare over generations.',
-        thematic_alignment:
-          'A monumental Polish science fiction odyssey that pushed European visionary cinema to its absolute ecstatic and philosophical boundaries.',
-        scale_projection: 'Excellent',
-        director: 'Andrzej Żuławski',
-      },
-      {
-        title: 'The Conversation',
-        year: 1974,
-        genre: ['Drama', 'Mystery', 'Thriller'],
-        country: 'USA',
-        runtime_mins: 113,
-        imdb_rating: 7.8,
-        posterUrl: '',
-        content_advisory: 'Psychological Paranoia & Surveillance Tension',
-        where_to_watch_india: 'Prime Video India, Apple TV Store, Criterion Channel',
-        audio_availability: 'English 5.1 Surround',
-        spoiler_free_premise:
-          'A secretive and obsessive surveillance expert suspects that a routine audio recording of a young couple conversing in a crowded park portends a corporate murder.',
-        thematic_alignment:
-          'Masterful sound design editing by Walter Murch, acoustic dread, and unmatched character characterization of solitary guilt.',
-        scale_projection: 'Excellent',
-        director: 'Francis Ford Coppola',
-      },
-      {
-        title: 'Blow Out',
-        year: 1981,
-        genre: ['Crime', 'Mystery', 'Thriller'],
-        country: 'USA',
-        runtime_mins: 108,
-        imdb_rating: 7.4,
-        posterUrl: '',
-        content_advisory: 'Political Conspiracy & Sound-Induced Paranoia',
-        where_to_watch_india: 'Criterion Channel, Prime Video (VOD), MUBI India',
-        audio_availability: 'English Dolby Surround',
-        spoiler_free_premise:
-          'A movie sound technician accidentally records audio proof of a political assassination when a car carrying a governor plunges off a bridge.',
-        thematic_alignment:
-          'Brian De Palma\'s split-diopter camera brilliance, vibrant color palettes, and devastating, cynical conclusions.',
-        scale_projection: 'Excellent',
-        director: 'Brian De Palma',
-      },
-    ],
-  };
 }
